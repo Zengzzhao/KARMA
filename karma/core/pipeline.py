@@ -5,6 +5,7 @@ This module contains the main KARMA pipeline that orchestrates all agents
 to process documents and extract knowledge.
 """
 
+import errno
 import logging
 import time
 import os
@@ -117,7 +118,9 @@ class KARMAPipeline:
         self,
         source: Union[str, Path],
         domain: str = "biomedical",
-        relevance_threshold: float = 0.2
+        relevance_threshold: float = 0.2,
+        *,
+        input_type: str = "auto"
     ) -> IntermediateOutput:
         """
         Process a document and extract knowledge.
@@ -126,6 +129,8 @@ class KARMAPipeline:
             source: Text content or path to PDF/text file
             domain: Domain context for relevance scoring
             relevance_threshold: Minimum relevance score for segments
+            input_type: "text" for literal text, "file" for a required file,
+                or "auto" for legacy string detection. Path objects are files.
 
         Returns:
             IntermediateOutput containing all pipeline results
@@ -135,7 +140,7 @@ class KARMAPipeline:
 
         try:
             # Step 1: Load and ingest document
-            raw_text = self._load_document(source)
+            raw_text = self._load_document(source, input_type=input_type)
             intermediate.raw_text = raw_text
 
             self._log("Starting KARMA pipeline...")
@@ -259,21 +264,46 @@ class KARMAPipeline:
             logger.error(f"Pipeline failed: {str(e)}")
             raise
 
-    def _load_document(self, source: Union[str, Path]) -> str:
+    def _load_document(self, source: Union[str, Path], *, input_type: str = "auto") -> str:
         """
         Load document content from various sources.
 
         Args:
             source: File path or text content
+            input_type: Explicit text/file mode or backwards-compatible auto detection
 
         Returns:
             Raw text content
         """
+        if input_type not in {"auto", "text", "file"}:
+            raise ValueError('input_type must be "auto", "text", or "file"')
+        if input_type == "text":
+            if not isinstance(source, str):
+                raise TypeError('Text input must be a string')
+            return source
+
+        if input_type == "file" or isinstance(source, Path):
+            source_path = Path(source)
+            if not source_path.is_file():
+                raise FileNotFoundError(f"Input file not found or not a regular file: {source_path}")
+            if source_path.suffix.lower() == '.pdf':
+                return self.pdf_reader.extract_text(source_path)
+            return source_path.read_text(encoding='utf-8')
+
         if isinstance(source, (str, Path)):
             source_path = Path(source)
 
             # Check if it's a file path
-            if source_path.exists():
+            try:
+                source_exists = source_path.exists()
+            except OSError as exc:
+                # Raw text may exceed the filesystem's filename length limit.
+                # Only strings can represent text; preserve errors for explicit paths.
+                if isinstance(source, str) and exc.errno == errno.ENAMETOOLONG:
+                    return source
+                raise
+
+            if source_exists:
                 if source_path.suffix.lower() == '.pdf':
                     return self.pdf_reader.extract_text(source_path)
                 else:

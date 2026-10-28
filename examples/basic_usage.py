@@ -6,30 +6,31 @@ This example demonstrates how to use KARMA to process a document
 and extract knowledge triples.
 """
 
-import os
+import argparse
 from pathlib import Path
 
 from karma import KARMAPipeline
-from karma.config import create_default_config
+from karma.config import load_config
 
 
 def main():
     """Main example function."""
-    # Get API key from environment or set directly
-    api_key = os.getenv("KARMA_API_KEY")
-    if not api_key:
-        print("Please set KARMA_API_KEY environment variable or provide API key directly")
-        return
-
-    # Create configuration
-    config = create_default_config(api_key=api_key)
-
-    # Optional: Customize configuration
-    config.pipeline.relevance_threshold = 0.3
-    config.pipeline.integration_threshold = 0.6
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--config", type=Path,
+        default=Path(__file__).resolve().parents[1] / "karma_config.json",
+        help="Configuration JSON file (default: project-root karma_config.json)",
+    )
+    args = parser.parse_args()
+    try:
+        config = load_config(args.config)
+    except (FileNotFoundError, ValueError) as exc:
+        parser.error(str(exc))
 
     # Initialize pipeline
     pipeline = KARMAPipeline.from_config(config)
+    print(f"API endpoint: {pipeline.client.base_url}")
+    print(f"Model: {pipeline.model_name}")
 
     # Example with text input
     sample_text = """
@@ -40,7 +41,11 @@ def main():
     """
 
     print("Processing sample text...")
-    result = pipeline.process_document(sample_text)
+    result = pipeline.process_document(
+        sample_text,
+        input_type="text",
+        relevance_threshold=config.pipeline.relevance_threshold,
+    )
 
     # Display results
     print(f"\nExtracted {len(result.integrated_triples)} knowledge triples:")
@@ -55,8 +60,8 @@ def main():
         print(f"- {entity.name} ({entity.entity_type})")
 
     # Export results
-    output_dir = Path("output")
-    output_dir.mkdir(exist_ok=True)
+    output_dir = Path(config.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     kg_path = output_dir / "sample_knowledge_graph.json"
     pipeline.export_knowledge_graph(kg_path)
