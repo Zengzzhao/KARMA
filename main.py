@@ -125,6 +125,8 @@ Examples:
     parser.add_argument('--integration-threshold', type=float, default=0.5, help='Integration threshold (default: 0.5)')
     parser.add_argument('--output-dir', default='karma_output', help='Output directory (default: karma_output)')
     parser.add_argument('--domain', default='biomedical', help='Domain context (default: biomedical)')
+    parser.add_argument('--debug-dir', help='Directory for numbered step debug files')
+    parser.add_argument('--no-debug-steps', action='store_true', help='Disable step debug files')
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output')
 
     args = parser.parse_args()
@@ -155,7 +157,9 @@ Examples:
 
     try:
         # Create configuration
-        config = create_default_config(api_key=args.api_key)
+        config = create_default_config(api_key=args.api_key, output_dir=args.output_dir)
+        config.save_debug_steps = not args.no_debug_steps
+        config.debug_dir = args.debug_dir
         config.model.name = args.model
         config.pipeline.relevance_threshold = args.relevance_threshold
         config.pipeline.integration_threshold = args.integration_threshold

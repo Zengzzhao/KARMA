@@ -14,6 +14,8 @@ from pathlib import Path
 
 from openai import OpenAI
 
+from .debug_trace import DebugTrace
+
 from .data_structures import (
     KnowledgeTriple, KGEntity, IntermediateOutput,
     DocumentMetadata, ProcessingMetrics, KnowledgeGraph
@@ -45,7 +47,8 @@ class KARMAPipeline:
         api_key: str,
         base_url: Optional[str] = None,
         model_name: str = "gpt-4o",
-        integration_threshold: float = 0.6
+        integration_threshold: float = 0.6,
+        debug_dir: Optional[Union[str, Path]] = "output/debug"
     ):
         """
         Initialize KARMA pipeline with API credentials.
@@ -54,6 +57,7 @@ class KARMAPipeline:
             api_key: OpenAI API key
             base_url: Optional API base URL for Azure or custom endpoints
             model_name: Model identifier
+            debug_dir: Per-step trace root; None disables tracing.
             integration_threshold: Minimum score to integrate knowledge
         """
         # Initialize OpenAI client
@@ -64,6 +68,8 @@ class KARMAPipeline:
         self.client = OpenAI(**client_kwargs)
         self.model_name = model_name
         self.integration_threshold = integration_threshold
+        self.debug_dir = debug_dir
+        self.last_debug_dir: Optional[Path] = None
 
         # Initialize all agent instances
         self._initialize_agents()
@@ -95,7 +101,9 @@ class KARMAPipeline:
             api_key=config.model.api_key,
             base_url=config.model.base_url,
             model_name=config.model.name,
-            integration_threshold=config.pipeline.integration_threshold
+            integration_threshold=config.pipeline.integration_threshold,
+            debug_dir=(config.debug_dir or Path(config.output_dir) / "debug")
+            if config.save_debug_steps else None
         )
 
         return pipeline
@@ -137,10 +145,24 @@ class KARMAPipeline:
         """
         start_time = time.time()
         intermediate = IntermediateOutput()
+        self.last_debug_dir = None
+        trace = DebugTrace(self.debug_dir, {
+            "model": self.model_name,
+            "domain_requested": domain,
+            "relevance_threshold": relevance_threshold,
+            "integration_threshold": self.integration_threshold,
+            "input_type": input_type,
+        })
+        self.last_debug_dir = trace.directory
+        if trace.directory is not None:
+            self._log(f"Step debug files: {trace.directory.resolve()}")
 
         try:
             # Step 1: Load and ingest document
-            raw_text = self._load_document(source, input_type=input_type)
+            raw_text = trace.run(
+                0, "load_document", {"source": source, "input_type": input_type},
+                lambda: self._load_document(source, input_type=input_type), ("raw_text",)
+            )
             intermediate.raw_text = raw_text
 
             self._log("Starting KARMA pipeline...")
@@ -149,7 +171,11 @@ class KARMAPipeline:
             self._log("[1/8] Running Ingestion Agent...")
             step_start = time.time()
 
-            metadata, normalized_content = self.ingestion_agent.process(raw_text)
+            metadata, normalized_content = trace.run(
+                1, "ingestion", {"raw_text": raw_text},
+                lambda: self.ingestion_agent.process(raw_text),
+                ("metadata", "normalized_content"), self.ingestion_agent
+            )
             intermediate.metadata = metadata
 
             step_time = time.time() - step_start
@@ -160,8 +186,11 @@ class KARMAPipeline:
             self._log("[2/8] Running Reader Agent...")
             step_start = time.time()
 
-            all_segments, relevant_segments = self.reader_agent.process(
-                normalized_content, relevance_threshold
+            all_segments, relevant_segments = trace.run(
+                2, "reader", {"normalized_content": normalized_content,
+                              "relevance_threshold": relevance_threshold},
+                lambda: self.reader_agent.process(normalized_content, relevance_threshold),
+                ("all_segments", "relevant_segments"), self.reader_agent
             )
             intermediate.segments = all_segments
             intermediate.relevant_segments = relevant_segments
@@ -175,7 +204,11 @@ class KARMAPipeline:
             self._log("[3/8] Running Summarizer Agent...")
             step_start = time.time()
 
-            summaries = self.summarizer_agent.process(relevant_segments)
+            summaries = trace.run(
+                3, "summarizer", {"relevant_segments": relevant_segments},
+                lambda: self.summarizer_agent.process(relevant_segments),
+                ("summaries",), self.summarizer_agent
+            )
             intermediate.summaries = summaries
 
             step_time = time.time() - step_start
@@ -187,7 +220,11 @@ class KARMAPipeline:
             self._log("[4/8] Running Entity Extraction Agent...")
             step_start = time.time()
 
-            entities = self.entity_extraction_agent.process(summaries)
+            entities = trace.run(
+                4, "entity_extraction", {"summaries": summaries},
+                lambda: self.entity_extraction_agent.process(summaries),
+                ("entities",), self.entity_extraction_agent
+            )
             intermediate.entities = entities
 
             step_time = time.time() - step_start
@@ -199,7 +236,11 @@ class KARMAPipeline:
             self._log("[5/8] Running Relationship Extraction Agent...")
             step_start = time.time()
 
-            relationships = self.relationship_extraction_agent.process(summaries, entities)
+            relationships = trace.run(
+                5, "relationship_extraction", {"summaries": summaries, "entities": entities},
+                lambda: self.relationship_extraction_agent.process(summaries, entities),
+                ("relationships",), self.relationship_extraction_agent
+            )
             intermediate.relationships = relationships
 
             step_time = time.time() - step_start
@@ -211,8 +252,10 @@ class KARMAPipeline:
             self._log("[6/8] Running Schema Alignment Agent...")
             step_start = time.time()
 
-            aligned_entities, aligned_relationships = self.schema_alignment_agent.process(
-                entities, relationships
+            aligned_entities, aligned_relationships = trace.run(
+                6, "schema_alignment", {"entities": entities, "relationships": relationships},
+                lambda: self.schema_alignment_agent.process(entities, relationships),
+                ("aligned_entities", "aligned_relationships"), self.schema_alignment_agent
             )
             intermediate.aligned_entities = aligned_entities
             intermediate.aligned_triples = aligned_relationships
@@ -225,8 +268,12 @@ class KARMAPipeline:
             self._log("[7/8] Running Conflict Resolution Agent...")
             step_start = time.time()
 
-            resolved_relationships = self.conflict_resolution_agent.process(
-                aligned_relationships, self.knowledge_graph.triples
+            resolved_relationships = trace.run(
+                7, "conflict_resolution", {"new_triples": aligned_relationships,
+                                          "existing_triples": self.knowledge_graph.triples},
+                lambda: self.conflict_resolution_agent.process(
+                    aligned_relationships, self.knowledge_graph.triples),
+                ("resolved_relationships",), self.conflict_resolution_agent
             )
             intermediate.final_triples = resolved_relationships
 
@@ -239,7 +286,12 @@ class KARMAPipeline:
             self._log("[8/8] Running Evaluator Agent...")
             step_start = time.time()
 
-            integrated_triples = self.evaluator_agent.process(resolved_relationships)
+            integrated_triples = trace.run(
+                8, "evaluator", {"candidate_triples": resolved_relationships,
+                                 "integration_threshold": self.integration_threshold},
+                lambda: self.evaluator_agent.process(resolved_relationships),
+                ("integrated_triples",), self.evaluator_agent
+            )
             intermediate.integrated_triples = integrated_triples
 
             step_time = time.time() - step_start
@@ -248,7 +300,16 @@ class KARMAPipeline:
                      f"Integrated: {len(integrated_triples)}")
 
             # Step 10: Update Knowledge Graph
-            self._update_knowledge_graph(aligned_entities, integrated_triples)
+            def integrate():
+                self._update_knowledge_graph(aligned_entities, integrated_triples)
+                return self.knowledge_graph.to_dict()
+
+            trace.run(
+                9, "knowledge_graph", {"entities": aligned_entities,
+                                       "triples": integrated_triples,
+                                       "previous_statistics": self.knowledge_graph.get_statistics()},
+                integrate, ("knowledge_graph",)
+            )
 
             # Finalize metrics
             total_time = time.time() - start_time

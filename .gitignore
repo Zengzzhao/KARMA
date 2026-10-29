@@ -129,6 +129,7 @@ dmypy.json
 .pyre/
 
 # KARMA specific
+karma_output/
 output/
 results/
 *.kg.json

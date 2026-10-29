@@ -47,6 +47,11 @@ def process_command(args) -> int:
             if args.integration_threshold:
                 config.pipeline.integration_threshold = args.integration_threshold
 
+        if args.no_debug_steps:
+            config.save_debug_steps = False
+        if args.debug_dir:
+            config.debug_dir = args.debug_dir
+
         # Override API key if provided
         if args.api_key:
             config.model.api_key = args.api_key
@@ -223,6 +228,8 @@ Examples:
     process_parser.add_argument('--domain', default='biomedical', help='Domain context')
     process_parser.add_argument('--relevance-threshold', type=float, help='Relevance threshold (0-1)')
     process_parser.add_argument('--integration-threshold', type=float, help='Integration threshold (0-1)')
+    process_parser.add_argument('--debug-dir', help='Directory for numbered step debug files')
+    process_parser.add_argument('--no-debug-steps', action='store_true', help='Disable step debug files')
     process_parser.add_argument('--save-intermediate', action='store_true', help='Save intermediate results')
     process_parser.add_argument('--log-level', default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'])
     process_parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output')

@@ -71,6 +71,8 @@ class KARMAConfig:
     # Output settings
     output_dir: str = "output"
     save_intermediate: bool = True
+    save_debug_steps: bool = True
+    debug_dir: Optional[str] = None  # Defaults to <output_dir>/debug
     export_format: str = "json"  # json, csv, or both
 
     # Performance settings

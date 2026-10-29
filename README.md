@@ -285,6 +285,77 @@ KARMA generates comprehensive results including:
 
 ## ⚙️ Configuration
 
+### 逐步调试文件（数据链路追踪）
+
+默认每次 `process_document()` 都会创建一个独立的调试目录，步骤完成后立即写入
+对应 JSON 文件，无需等待整篇文档处理结束。批量处理时，每篇文档使用独立目录。
+
+```text
+<output_dir>/debug/<UTC时间戳>_<随机标识>/
+├── 00_load_document.json             # 文件解析后的完整原始文本
+├── 01_ingestion.json                 # 元数据、清洗后的正文
+├── 02_reader.json                    # 全部分块、评分、筛选后的分块
+├── 03_summarizer.json                # 各块摘要
+├── 04_entity_extraction.json         # 实体及类型、标准编号、别名
+├── 05_relationship_extraction.json   # 抽取的关系及评分
+├── 06_schema_alignment.json          # 对齐前后的实体与关系
+├── 07_conflict_resolution.json       # 新关系、已有关系、冲突处理结果
+├── 08_evaluator.json                 # 候选关系、阈值、通过筛选的关系
+└── 09_knowledge_graph.json           # 本次入图数据、更新后的完整图谱
+```
+
+每个文件包含：
+
+- `step` / `name`：步骤编号和名称。
+- `previous_file`：上一执行步骤的文件名；具体数据依赖看 `inputs`。
+- `inputs` / `outputs`：该步骤的完整输入和输出，中文直接显示。
+- `parameters`：模型名称、请求领域、阈值、输入类型，不包含 API 配置或密钥。
+- `started_at` / `finished_at` / `elapsed_seconds`：UTC 时间及耗时。
+- `agent_metrics_delta`：该步骤新增的模型调用数、Token 数、错误数等；非 Agent 步骤为空。
+- `status`：`completed` 或 `failed`。失败时额外记录 `error` 的类型、消息和调用栈。
+
+输入在执行前复制，输出在执行后立即保存，因此后续原地修改不会覆盖之前的快照。
+如果某步抛出异常，此步仍保存失败记录，之前的文件保留，后续步骤不产生文件。
+Agent 内部自行捕获并兜底的错误不会将整个步骤标为失败，可结合 `agent_metrics_delta`
+和运行日志判断。调试目录无法写入时会报错，不会静默声称已保存。
+
+这些文件记录的是节点边界数据，不是每次模型请求的原始 prompt/response，也不改变
+现有抽取逻辑。例如关系节点已经丢弃的 `evidence` 不会在调试文件中凭空恢复。
+
+```bash
+# 根目录入口：默认保存到 karma_output/debug/
+python main.py Example_Paper.pdf
+
+# 修改结果目录，调试文件随之保存到 results/debug/
+python main.py Example_Paper.pdf --output-dir results
+
+# 两个入口都支持自定义调试目录及关闭开关
+python main.py Example_Paper.pdf --debug-dir output/my_trace
+karma process Example_Paper.pdf --config karma_config.json --debug-dir output/my_trace
+python main.py Example_Paper.pdf --no-debug-steps
+```
+
+以上命令沿用原有的 API 凭据设置方式。控制台日志会打印本次调试目录。
+Python API 可通过 `pipeline.last_debug_dir` 获取最近一次的目录路径：
+
+```python
+pipeline = KARMAPipeline(api_key=api_key, debug_dir="output/debug")
+result = pipeline.process_document("Example_Paper.pdf")
+print(pipeline.last_debug_dir)
+
+# 关闭：KARMAPipeline(api_key=api_key, debug_dir=None)
+```
+
+使用配置对象或 JSON 配置时，顶层字段 `save_debug_steps`（默认 `true`）控制开关，
+`debug_dir`（默认 `null`）指定根目录；未指定时使用 `<output_dir>/debug`。
+该开关独立于原有的 `save_intermediate` / `--save-intermediate`。
+
+离线验证（使用模拟抽取结果，不调用模型 API）：
+
+```bash
+python -m unittest discover -s tests -v
+```
+
 KARMA supports comprehensive configuration through files or environment variables:
 
 ### Configuration File Example
