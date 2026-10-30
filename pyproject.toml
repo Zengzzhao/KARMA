@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "karma-nlp"
 dynamic = ["version"]
-description = "Multi-Agent LLMs for Automated Knowledge Graph Enrichment"
+description = "多智能体大语言模型知识图谱构建与补充"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
@@ -59,10 +59,10 @@ all = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/YuxingLu613/KARMA"
-"Bug Reports" = "https://github.com/YuxingLu613/KARMA/issues"
-"Source" = "https://github.com/YuxingLu613/KARMA"
-"Documentation" = "https://karma-nlp.readthedocs.io/"
+"项目主页" = "https://github.com/YuxingLu613/KARMA"
+"问题反馈" = "https://github.com/YuxingLu613/KARMA/issues"
+"源代码" = "https://github.com/YuxingLu613/KARMA"
+"使用文档" = "https://karma-nlp.readthedocs.io/"
 
 [project.scripts]
 karma = "karma.cli:main"
@@ -79,7 +79,7 @@ target-version = ['py38']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
-  # directories
+  # 排除的目录
   \.eggs
   | \.git
   | \.hg
@@ -123,9 +123,9 @@ python_classes = "Test*"
 python_functions = "test_*"
 addopts = "-v --tb=short --strict-markers"
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
-    "unit: marks tests as unit tests",
+    "slow: 标记慢速测试",
+    "integration: 标记集成测试",
+    "unit: 标记单元测试",
 ]
 
 [tool.coverage.run]

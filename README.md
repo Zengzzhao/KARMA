@@ -1,289 +1,161 @@
-# KARMA: Leveraging Multi-Agent LLMs for Automated Knowledge Graph Enrichment 🤖
+# KARMA：多智能体知识图谱构建与补充
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![ArXiv](https://img.shields.io/badge/arXiv-2502.06472-b31b1b.svg)](https://arxiv.org/abs/2502.06472)
+本工程基于 KARMA，面向 Scientometrics 期刊 2004—2024 年论文中的科学计量指标知识抽取。当前系统提示词已改为中文，目标包括指标、公式、局限性、论文与指标关系以及指标间关系。
 
-KARMA is a cutting-edge natural language processing framework that leverages a coordinated multi-agent system to automatically extract, validate, and integrate scientific knowledge into structured knowledge graphs. By employing specialized Large Language Model (LLM) agents, KARMA ensures high-quality knowledge extraction while maintaining semantic consistency and domain expertise.
+当前版本是领域迁移的初步实现。公式、局限性和证据的结构化保存仍需后续开发，不能将提示词中提出的要求视为已经实现的数据字段。
 
-![KARMA Pipeline Overview](https://github.com/user-attachments/assets/477485dc-8d56-4b05-95a4-77547e5ceb39)
+## 安装与运行
 
-## 🌟 Key Features
-
-### Multi-Agent Architecture
-- **9 Specialized Agents**: Each agent handles a distinct stage of knowledge extraction
-- **Coordinated Processing**: Agents work together in a carefully orchestrated pipeline
-- **Quality Assurance**: Multi-stage validation with confidence, clarity, and relevance scoring
-
-### Domain Expertise
-- **Biomedical Focus**: Optimized for scientific literature processing
-- **Entity Recognition**: Identifies diseases, drugs, genes, proteins, and other biomedical entities
-- **Relationship Extraction**: Captures complex relationships like "treats", "causes", "inhibits"
-- **Ontology Alignment**: Links entities to standard biomedical ontologies (UMLS, MeSH, NCBI)
-
-### Production Ready
-- **Scalable Design**: Handles both single documents and large-scale batch processing
-- **Flexible Configuration**: Comprehensive configuration management system
-- **Professional CLI**: Command-line interface for easy integration
-- **Robust Error Handling**: Graceful handling of processing failures
-
-## 📋 Table of Contents
-
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Architecture](#architecture)
-- [Usage Examples](#usage-examples)
-- [API Reference](#api-reference)
-- [Configuration](#configuration)
-- [Contributing](#contributing)
-- [Citation](#citation)
-- [License](#license)
-
-## 🚀 Installation
-
-### Using pip (Recommended)
+在本工程目录安装，才能使用本地修改后的版本：
 
 ```bash
-pip install karma-nlp
-```
-
-### From Source
-
-```bash
-git clone https://github.com/YuxingLu613/KARMA.git
-cd KARMA
+cd /Users/zengzizhao/Desktop/KARMA
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .
+
+# 设置接口密钥后处理示例论文
+export KARMA_API_KEY="你的接口密钥"
+python main.py Example_Paper.pdf --output-dir output --verbose
 ```
 
-### Development Installation
+已有虚拟环境时直接激活即可。依赖声明要求 Python 3.8 或更高版本，核心依赖为 `openai`、`PyPDF2` 和 `typing-extensions`。
+
+根目录入口会保存关系明细 CSV、知识图谱 JSON、中间结果 JSON 和逐步调试文件。`main.py` 默认使用 `gpt-4o-mini`，相关性阈值为 0.2，整合阈值为 0.5。
 
 ```bash
-git clone https://github.com/YuxingLu613/KARMA.git
-cd KARMA
-pip install -e ".[dev]"
+# 查看参数说明
+python main.py --help
+
+# 使用已保存的配置（可在配置中指定接口地址）
+karma process Example_Paper.pdf --config karma_config.json --output output/results.json --save-intermediate
+
+# 创建或验证配置
+karma config create --api-key "你的接口密钥" --config-file karma_config.json
+karma config validate --config-file karma_config.json
+
+# 查看软件包信息
+karma info
 ```
 
-## ⚡ Quick Start
+`karma process` 的 `--output` 决定图谱文件位置，实际图谱文件扩展名为 `.kg.json`；`--output-dir` 决定默认调试目录的根路径。使用配置文件时，输出目录取配置中的值。
 
-### Command Line Interface
+## 工程目录
 
-```bash
-# Process a PDF document
-karma process document.pdf --api-key YOUR_OPENAI_KEY --output results.json
+| 路径 | 用途 |
+|---|---|
+| `main.py` | 单文档处理入口及关系明细导出 |
+| `karma.sh` | 包装主程序的启动脚本 |
+| `karma/cli.py` | 文档处理、配置管理和信息查询命令 |
+| `karma/core/pipeline.py` | 智能体实例化、顺序编排和图谱整合 |
+| `karma/core/base_agent.py` | 模型调用、响应解析和调用统计 |
+| `karma/core/data_structures.py` | 元数据、实体、三元组和中间结果结构 |
+| `karma/core/debug_trace.py` | 各步骤输入输出快照 |
+| `karma/agents/scientometrics_prompts.py` | 科学计量领域的中文系统提示词 |
+| `karma/agents/` | 八个智能体的实现 |
+| `karma/utils/` | PDF 读取与文本处理工具 |
+| `karma/config/` | 配置读取、校验和日志配置 |
+| `examples/basic_usage.py` | 读取配置并处理中文示例文本 |
+| `docs/scientometrics_prompt_migration.md` | 领域迁移说明和当前边界 |
 
-# Process with custom settings
-karma process document.pdf --api-key YOUR_KEY --model gpt-4 \\
-  --relevance-threshold 0.3 --integration-threshold 0.7
+## 智能体与数据链路
 
-# Create and use configuration file
-karma config create --api-key YOUR_KEY --config-file karma_config.json
-karma process document.pdf --config karma_config.json
-```
+当前工程通过 `KARMAPipeline` 顺序调用八个智能体，未使用 LangGraph。各智能体继承统一基类，共用模型客户端，通过 Python 对象传递阶段结果。
 
-### Python API
+| 步骤 | 实现 | 输入与输出 |
+|---|---|---|
+| 文档加载 | `PDFReader` 或文本文件读取 | 文件 → 原始文本 |
+| 文档接收 | `IngestionAgent` | 原始文本 → 元数据和规范化正文 |
+| 阅读分块 | `ReaderAgent` | 正文 → 全部分块及相关分块 |
+| 摘要生成 | `SummarizerAgent` | 相关分块 → 摘要列表 |
+| 实体抽取 | `EntityExtractionAgent` | 摘要 → 指标实体；主流程补充论文实体 |
+| 关系抽取 | `RelationshipExtractionAgent` | 摘要和实体 → 关系三元组 |
+| 模式对齐 | `SchemaAlignmentAgent` | 实体和三元组 → 规范化结果 |
+| 冲突消解 | `ConflictResolutionAgent` | 新增及已有三元组 → 保留的关系 |
+| 质量评估 | `EvaluatorAgent` | 候选关系 → 达到阈值的关系 |
+| 图谱整合 | 主流程 | 实体和通过评估的关系 → 知识图谱 |
+
+前五个智能体会调用模型；模式对齐、冲突消解和质量评估目前执行本地规则。它们的角色提示词不会自动替代规则实现。整合评分为 `0.5 × confidence + 0.25 × clarity + 0.25 × relevance`。
+
+PDF 文本由 PyPDF2 提取，随后进行清洗。阅读节点主要依据双换行符分段，再识别章节特征；它不是完整的版面或章节解析器。清洗后段落边界消失时，可能将整篇文档识别成一个片段，单独翻译提示词不能修复此问题。
+
+## 目标实体与关系
+
+论文实体类型为 `Paper`，程序优先用元数据 `title` 作为名称，标题不可用时使用 `doi`，两者都不可用则不创建。模型只负责识别 `Indicator` 指标实体。
+
+| 标签 | 方向 | 含义 |
+|---|---|---|
+| `proposes` | 论文 → 指标 | 本文首次提出、命名或正式定义指标 |
+| `modifies` | 论文 → 指标 | 本文实际修正或扩展指标 |
+| `applies` | 论文 → 指标 | 本文将已有指标用于分析、评价或比较 |
+| `variant_of` | 变体指标 → 原指标 | 保留核心思想或公式结构的变体 |
+| `derived_from` | 派生指标 → 来源指标 | 直接来源于另一指标且存在实质改动 |
+| `improves_on` | 改进指标 → 被改进指标 | 明确针对缺陷或适用性问题改进 |
+| `alternative_to` | 指标 ↔ 指标 | 特定条件下构成替代或竞争方案 |
+| `component_of` | 组成指标 → 整体指标 | 作为输入或子指标纳入复合指标 |
+
+标签与方向由中文提示词规定，当前不是完整的程序端约束验证。
+
+## Python 调用
 
 ```python
+import os
 from karma import KARMAPipeline
 from karma.config import create_default_config
 
-# Create configuration
-config = create_default_config(api_key="your-openai-api-key")
-
-# Initialize pipeline
+config = create_default_config(api_key=os.environ["KARMA_API_KEY"], output_dir="output")
 pipeline = KARMAPipeline.from_config(config)
+result = pipeline.process_document("Example_Paper.pdf", relevance_threshold=0.2)
 
-# Process document
-result = pipeline.process_document("path/to/document.pdf")
+print(f"已抽取 {len(result.integrated_triples)} 个知识三元组")
+for triple in result.integrated_triples:
+    print(triple.head, triple.relation, triple.tail)
+pipeline.export_knowledge_graph("output/knowledge_graph.json")
 
-# Access results
-print(f"Extracted {len(result.integrated_triples)} knowledge triples")
-for triple in result.integrated_triples[:5]:
-    print(f"{triple.head} --[{triple.relation}]--> {triple.tail} (confidence: {triple.confidence:.2f})")
-
-# Export knowledge graph
-pipeline.export_knowledge_graph("knowledge_graph.json")
+# 批量处理时复用同一流程实例，知识图谱会持续累积
+results = pipeline.process_batch(["doc1.pdf", "doc2.pdf"])
 ```
 
-### Batch Processing
+## 配置与数据结构
 
-```python
-# Process multiple documents
-documents = ["doc1.pdf", "doc2.pdf", "doc3.pdf"]
-results = pipeline.process_batch(documents)
+配置示例：
 
-# Analyze results
-total_triples = sum(len(result.integrated_triples) for result in results)
-print(f"Extracted {total_triples} total knowledge triples from {len(documents)} documents")
-```
-
-## 🏗️ Architecture
-
-KARMA employs a sophisticated multi-agent architecture where each agent specializes in a specific aspect of knowledge extraction:
-
-### Pipeline Stages
-
-1. **Ingestion Agent (IA)** 📥
-   - Retrieves and standardizes raw documents (PDF, HTML, text)
-   - Extracts metadata (authors, journal, publication date)
-   - Handles OCR artifacts and text normalization
-
-2. **Reader Agent (RA)** 📖
-   - Segments documents into logical chunks
-   - Scores segment relevance using domain knowledge
-   - Filters non-relevant content (acknowledgments, references)
-
-3. **Summarizer Agent (SA)** 📝
-   - Condenses relevant segments into concise summaries
-   - Preserves technical details and entity relationships
-   - Maintains quantitative data and statistical findings
-
-4. **Entity Extraction Agent (EEA)** 🔍
-   - Identifies biomedical entities using few-shot learning
-   - Classifies entity types (Drug, Disease, Gene, Protein, etc.)
-   - Normalizes entities to canonical ontology forms
-
-5. **Relationship Extraction Agent (REA)** 🔗
-   - Detects relationships between entity pairs
-   - Handles multi-label classification for overlapping relations
-   - Recognizes negation and conditional statements
-
-6. **Schema Alignment Agent (SAA)** 🎯
-   - Maps entities to knowledge graph schema types
-   - Standardizes relationship labels
-   - Handles novel entities and relations
-
-7. **Conflict Resolution Agent (CRA)** ⚖️
-   - Resolves contradictions between new and existing knowledge
-   - Uses LLM-based debate and evidence aggregation
-   - Maintains knowledge graph consistency
-
-8. **Evaluator Agent (EA)** 📊
-   - Computes integration confidence using multiple signals
-   - Evaluates confidence, clarity, and relevance
-   - Applies threshold-based approval for final integration
-
-## 💡 Usage Examples
-
-### Basic Document Processing
-
-```python
-from karma import KARMAPipeline
-
-# Initialize with API key
-pipeline = KARMAPipeline(api_key="your-key", model_name="gpt-4o")
-
-# Process a research paper
-result = pipeline.process_document("alzheimer_research.pdf")
-
-# Examine extracted knowledge
-print("Extracted Entities:")
-for entity in result.entities[:10]:
-    print(f"  {entity.name} ({entity.entity_type})")
-
-print("\\nExtracted Relationships:")
-for triple in result.integrated_triples[:5]:
-    print(f"  {triple.head} {triple.relation} {triple.tail}")
-```
-
-### Advanced Configuration
-
-```python
-from karma.config import KARMAConfig, ModelConfig, PipelineConfig
-
-# Create custom configuration
-config = KARMAConfig(
-    model=ModelConfig(
-        name="gpt-4",
-        api_key="your-key",
-        temperature=0.1
-    ),
-    pipeline=PipelineConfig(
-        relevance_threshold=0.3,
-        integration_threshold=0.7,
-        batch_size=10
-    )
-)
-
-# Use configuration
-pipeline = KARMAPipeline.from_config(config)
-```
-
-### Domain-Specific Processing
-
-```python
-# Process with custom domain focus
-result = pipeline.process_document(
-    "cancer_research.pdf",
-    domain="oncology",
-    relevance_threshold=0.4
-)
-
-# Filter for specific entity types
-drugs = [e for e in result.entities if e.entity_type == "Drug"]
-diseases = [e for e in result.entities if e.entity_type == "Disease"]
-
-print(f"Found {len(drugs)} drugs and {len(diseases)} diseases")
-```
-
-### Knowledge Graph Analysis
-
-```python
-# Get knowledge graph statistics
-kg = pipeline.get_knowledge_graph()
-stats = kg.get_statistics()
-
-print(f"Knowledge Graph Contains:")
-print(f"  Entities: {stats['entity_count']}")
-print(f"  Relationships: {stats['triple_count']}")
-print(f"  Unique Relations: {stats['unique_relations']}")
-print(f"  Average Confidence: {stats['avg_confidence']:.2f}")
-```
-
-## 📊 Output Format
-
-KARMA generates comprehensive results including:
-
-### Knowledge Triples
 ```json
 {
-  "head": "Metformin",
-  "relation": "treats",
-  "tail": "Type 2 Diabetes",
-  "confidence": 0.95,
-  "clarity": 0.90,
-  "relevance": 0.88,
+  "model": {
+    "name": "gpt-4o-mini",
+    "api_key": "你的接口密钥",
+    "base_url": null
+  },
+  "pipeline": {
+    "relevance_threshold": 0.2,
+    "integration_threshold": 0.5
+  },
+  "output_dir": "output",
+  "save_debug_steps": true,
+  "debug_dir": null
+}
+```
+
+配置对象还包含部分预留参数，不能假定每个参数都已接入各节点。`domain` 目前用于记录领域上下文，不会动态切换系统提示词。`get_environment_config()` 可读取 `KARMA_API_KEY`、`KARMA_BASE_URL`、`KARMA_MODEL`、`KARMA_RELEVANCE_THRESHOLD`、`KARMA_INTEGRATION_THRESHOLD` 和 `KARMA_OUTPUT_DIR`；各命令行入口具体支持的覆盖方式以帮助信息为准。
+
+`DocumentMetadata` 仅保留 `title`、`authors`、`pub_date`、`doi`。实体结构包含 `entity_id`、`entity_type`、`name`、`normalized_id`、`aliases`。三元组示例：
+
+```json
+{
+  "head": "示例论文标题",
+  "relation": "applies",
+  "tail": "h-index",
+  "confidence": 0.9,
+  "clarity": 0.8,
+  "relevance": 0.8,
   "source": "relationship_extraction"
 }
 ```
 
-### Entities
-```json
-{
-  "entity_id": "metformin",
-  "entity_type": "Drug",
-  "name": "Metformin",
-  "normalized_id": "MESH:D008687",
-  "aliases": ["Glucophage", "Dimethylbiguanide"]
-}
-```
+模型调用使用普通对话接口，依靠提示词要求返回 JSON，再由代码解析并转换为数据对象；没有启用严格的模型输出结构校验。
 
-### Processing Metrics
-```json
-{
-  "processing_time": 45.2,
-  "prompt_tokens": 15420,
-  "completion_tokens": 3240,
-  "agent_times": {
-    "ingestion": 2.1,
-    "reader": 8.3,
-    "summarizer": 12.4,
-    "entity_extraction": 9.8,
-    "relationship_extraction": 8.9
-  }
-}
-```
-
-## ⚙️ Configuration
+## 调试与流程追踪
 
 ### 逐步调试文件（数据链路追踪）
 
@@ -350,120 +222,34 @@ print(pipeline.last_debug_dir)
 `debug_dir`（默认 `null`）指定根目录；未指定时使用 `<output_dir>/debug`。
 该开关独立于原有的 `save_intermediate` / `--save-intermediate`。
 
-离线验证（使用模拟抽取结果，不调用模型 API）：
+
+## 当前仍需迁移的部分
+
+- 摘要长度限制可能丢失公式、评价或关系证据。
+- 实体数据结构尚无公式和局限性字段；关系解析未保存模型响应中的 `evidence`。
+- 既有实体提取回退规则、摘要回退词表和部分评分规则尚未完整迁移到科学计量领域。
+- 扫描版 PDF、复杂公式、双栏文本以及章节边界需要进一步处理；当前流程不提供完整的 OCR 或公式识别。
+
+中文化覆盖本工程的说明、注释、帮助和运行消息。代码标识符、命令参数、JSON 字段、关系标签、英文论文匹配规则、原文实体及证据保留原样，以维持数据兼容性。依赖包元数据的标准分类标签、原始引用和 MIT 许可文本也保留原文。
+
+## 开发与检查
 
 ```bash
-python -m unittest discover -s tests -v
-```
-
-KARMA supports comprehensive configuration through files or environment variables:
-
-### Configuration File Example
-
-```json
-{
-  "model": {
-    "name": "gpt-4o",
-    "api_key": "your-api-key",
-    "temperature": 0.1,
-    "max_tokens": 4096
-  },
-  "pipeline": {
-    "relevance_threshold": 0.2,
-    "integration_threshold": 0.6,
-    "batch_size": 5
-  },
-  "agents": {
-    "entity_extraction": {
-      "min_entity_length": 2
-    },
-    "relationship_extraction": {
-      "min_confidence": 0.3
-    }
-  },
-  "output_dir": "results",
-  "save_intermediate": true
-}
-```
-
-### Environment Variables
-
-```bash
-export KARMA_API_KEY="your-api-key"
-export KARMA_MODEL="gpt-4"
-export KARMA_RELEVANCE_THRESHOLD="0.3"
-export KARMA_OUTPUT_DIR="./output"
-```
-
-## 🛠️ Requirements
-
-- **Python**: 3.8 or higher
-- **Dependencies**:
-  - `openai>=1.0.0`: LLM integration
-  - `PyPDF2>=3.0.0`: PDF processing
-  - `typing-extensions>=4.0.0`: Type hints support
-
-### Optional Dependencies
-- `spacy>=3.4.0`: Enhanced NLP processing
-- `networkx>=2.8.0`: Knowledge graph operations
-- `matplotlib>=3.5.0`: Visualization
-- `pandas>=1.4.0`: Data analysis
-
-## 🧪 Testing
-
-Run the test suite:
-
-```bash
-# Install development dependencies
+# 安装开发依赖
 pip install -e ".[dev]"
 
-# Run tests
-pytest
-
-# Run with coverage
-pytest --cov=karma --cov-report=html
+# 检查 Python 语法及入口帮助，不调用模型
+python -m compileall -q karma main.py examples setup.py
+python main.py --help
+python -m karma.cli --help
+bash -n karma.sh
 ```
 
-## 🤝 Contributing
+当前工程没有随附测试目录。涉及抽取逻辑的后续修改，应另行准备带人工标注的论文样本，并评估指标识别、关系方向、贡献归属和证据保留情况。
 
-We welcome contributions!
+## 原项目与引用
 
-### Development Setup
-
-```bash
-# Clone repository
-git clone https://github.com/YuxingLu613/KARMA.git
-cd KARMA
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\\Scripts\\activate
-
-# Install in development mode
-pip install -e ".[dev]"
-
-# Install pre-commit hooks
-pre-commit install
-```
-
-### Code Style
-
-We use:
-- **Black** for code formatting
-- **Flake8** for linting
-- **MyPy** for type checking
-- **Pytest** for testing
-
-## 📚 Documentation
-
-- **API Documentation**: [https://karma-nlp.readthedocs.io/](https://karma-nlp.readthedocs.io/)
-- **Research Paper**: [ArXiv:2502.06472](https://arxiv.org/abs/2502.06472)
-- **Examples**: See the `examples/` directory
-- **Tutorials**: Available in `docs/tutorials/`
-
-## 🏆 Citation
-
-If you use KARMA in your research, please cite our paper:
+原项目作者：Yuxing Lu。原项目仓库：[KARMA](https://github.com/YuxingLu613/KARMA)。论文：[KARMA 原论文](https://arxiv.org/abs/2502.06472)。以下保留原始文献条目，方便学术引用：
 
 ```bibtex
 @article{lu2025karma,
@@ -474,25 +260,4 @@ If you use KARMA in your research, please cite our paper:
 }
 ```
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 📞 Contact
-
-- **Author**: Yuxing Lu
-- **Email**: yxlu0613@gmail.com
-- **Issues**: [GitHub Issues](https://github.com/YuxingLu613/KARMA/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/YuxingLu613/KARMA/discussions)
-
-## 🙏 Acknowledgments
-
-- OpenAI for providing the LLM infrastructure
-- The biomedical research community for inspiration and validation
-- All contributors and users of the KARMA framework
-
----
-
-<p align="center">
-  <strong>KARMA: Transforming Scientific Literature into Structured Knowledge 🧬</strong>
-</p>
+本项目采用 MIT 许可证，详见 [许可原文](LICENSE)。原项目问题反馈入口：[问题列表](https://github.com/YuxingLu613/KARMA/issues)。

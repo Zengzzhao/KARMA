@@ -1,9 +1,9 @@
-# Core dependencies
+# 核心依赖
 openai>=1.0.0
 PyPDF2>=3.0.0
 typing-extensions>=4.0.0
 
-# Optional dependencies for enhanced functionality
+# 增强功能的可选依赖
 # spacy>=3.4.0
 # networkx>=2.8.0
 # matplotlib>=3.5.0

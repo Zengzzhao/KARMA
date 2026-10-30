@@ -1,4 +1,6 @@
-"""Evaluator Agent Implementation"""
+"""质量评估智能体实现"""
+
+from karma.agents.scientometrics_prompts import EVALUATOR
 
 import logging
 from typing import List, Tuple
@@ -9,75 +11,23 @@ logger = logging.getLogger(__name__)
 
 
 class EvaluatorAgent(BaseAgent):
-    """Evaluator Agent (EA) for final quality assessment and integration decisions."""
+    """负责最终质量评估及整合判断的智能体。"""
 
     def __init__(self, client, model_name: str, integrate_threshold: float = 0.6):
-        system_prompt = """You are a specialized Evaluator Agent for biomedical knowledge graph integration. Your task is to assess the quality of extracted knowledge triples and make final integration decisions based on comprehensive quality metrics.
-
-OBJECTIVE: Evaluate knowledge triples using multi-dimensional quality assessment and determine integration eligibility based on established thresholds.
-
-EVALUATION DIMENSIONS:
-
-1. CONFIDENCE (Weight: 50%):
-   - Reliability of the extraction process
-   - Strength of textual evidence
-   - Consistency with domain knowledge
-   - Statistical significance if applicable
-
-2. CLARITY (Weight: 25%):
-   - Linguistic precision of the relationship
-   - Specificity of entity references
-   - Absence of ambiguity
-   - Definiteness of the relationship statement
-
-3. RELEVANCE (Weight: 25%):
-   - Biomedical significance
-   - Potential impact on knowledge discovery
-   - Novelty or confirmatory value
-   - Alignment with domain priorities
-
-INTEGRATION SCORING:
-Integration Score = (0.5 × Confidence) + (0.25 × Clarity) + (0.25 × Relevance)
-
-QUALITY THRESHOLDS:
-- EXCELLENT (≥0.8): High-quality, well-supported relationships
-- GOOD (0.6-0.79): Reliable relationships with minor limitations
-- ACCEPTABLE (0.5-0.59): Adequate quality for integration
-- QUESTIONABLE (0.3-0.49): Limited reliability, review required
-- POOR (<0.3): Insufficient quality for integration
-
-DECISION CRITERIA:
-INTEGRATE IF:
-- Integration score ≥ threshold (typically 0.6)
-- All dimension scores ≥ 0.3 (minimum quality floor)
-- No significant quality concerns identified
-- Relationship adds value to knowledge base
-
-REJECT IF:
-- Integration score < threshold
-- Any dimension score < 0.3
-- Contradicts well-established facts
-- Insufficient supporting evidence
-
-PROCESSING REQUIREMENTS:
-- Apply consistent evaluation standards
-- Document quality assessment reasoning
-- Maintain transparency in decision making
-- Preserve original quality metrics
-- Enable threshold adjustment for different use cases"""
+        system_prompt = EVALUATOR
         super().__init__(client, model_name, system_prompt)
         self.integrate_threshold = integrate_threshold
 
     def process(self, triples: List[KnowledgeTriple]) -> List[KnowledgeTriple]:
-        """Evaluate and filter triples based on quality metrics."""
+        """根据质量评分评估并筛选三元组。"""
         return self.finalize_triples(triples)[0]
 
     def finalize_triples(self, candidate_triples: List[KnowledgeTriple]) -> Tuple[List[KnowledgeTriple], int, int, float]:
-        """Filter triples based on integration threshold."""
+        """根据整合阈值筛选三元组。"""
         integrated_triples = []
 
         for triple in candidate_triples:
-            # Ensure all metrics are set
+            # 确保各项评分均已设置
             if triple.confidence <= 0:
                 triple.confidence = 0.5
             if triple.clarity <= 0:
@@ -85,16 +35,16 @@ PROCESSING REQUIREMENTS:
             if triple.relevance <= 0:
                 triple.relevance = 0.5
 
-            # Calculate integration score
+            # 计算整合评分
             integration_score = self._aggregate_scores(triple)
 
-            # Keep triple if it meets threshold
+            # 保留达到阈值的三元组
             if integration_score >= self.integrate_threshold:
                 integrated_triples.append(triple)
 
         return integrated_triples, 0, 0, 0.0
 
     def _aggregate_scores(self, triple: KnowledgeTriple) -> float:
-        """Combine quality metrics into final score."""
-        # Weighted average: confidence=50%, clarity=25%, relevance=25%
+        """将各项质量评分合并为最终评分。"""
+        # 加权平均：置信度占 50%，清晰度占 25%，相关性占 25%
         return (0.5 * triple.confidence + 0.25 * triple.clarity + 0.25 * triple.relevance)

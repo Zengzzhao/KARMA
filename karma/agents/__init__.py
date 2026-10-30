@@ -1,8 +1,8 @@
 """
-KARMA Agents Module
+KARMA 智能体模块
 
-This module contains all the specialized agents used in the KARMA pipeline.
-Each agent handles a specific stage of the knowledge extraction process.
+本模块包含 KARMA 处理流程使用的各个专用智能体。
+每个智能体负责知识抽取中的一个处理阶段。
 """
 
 from .ingestion.agent import IngestionAgent

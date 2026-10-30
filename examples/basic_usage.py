@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Basic usage example for KARMA.
+KARMA 基本使用示例。
 
-This example demonstrates how to use KARMA to process a document
-and extract knowledge triples.
+演示如何使用 KARMA 处理文档，
+并抽取知识三元组。
 """
 
 import argparse
@@ -11,15 +11,16 @@ from pathlib import Path
 
 from karma import KARMAPipeline
 from karma.config import load_config
+from karma.utils.cli_localization import ChineseArgumentParser
 
 
 def main():
-    """Main example function."""
-    parser = argparse.ArgumentParser(description=__doc__)
+    """示例主函数。"""
+    parser = ChineseArgumentParser(description=__doc__)
     parser.add_argument(
         "--config", type=Path,
         default=Path(__file__).resolve().parents[1] / "karma_config.json",
-        help="Configuration JSON file (default: project-root karma_config.json)",
+        help="JSON 配置文件（默认：工程根目录下的 karma_config.json）",
     )
     args = parser.parse_args()
     try:
@@ -27,51 +28,52 @@ def main():
     except (FileNotFoundError, ValueError) as exc:
         parser.error(str(exc))
 
-    # Initialize pipeline
+    # 初始化处理流程
     pipeline = KARMAPipeline.from_config(config)
-    print(f"API endpoint: {pipeline.client.base_url}")
-    print(f"Model: {pipeline.model_name}")
+    print(f"接口地址： {pipeline.client.base_url}")
+    print(f"模型： {pipeline.model_name}")
 
-    # Example with text input
+    # 直接输入文本的示例
     sample_text = """
-    Aspirin is a medication used to reduce pain, fever, or inflammation.
-    It works by inhibiting cyclooxygenase enzymes. Studies have shown that
-    aspirin can reduce the risk of heart attack and stroke. The drug was
-    first synthesized in 1897 by Felix Hoffmann at Bayer.
+    科学计量指标应用示例（虚构文本，仅用于演示流程）
+
+    本文将 h 指数用于一组研究人员的科研表现比较。
+    研究人员的 h 指数为 h，表示其至少有 h 篇论文分别获得不少于 h 次引用。
+    本文指出，h 指数受学术生涯长度影响，跨职业阶段比较时应谨慎解释。
     """
 
-    print("Processing sample text...")
+    print("正在处理示例文本……")
     result = pipeline.process_document(
         sample_text,
         input_type="text",
         relevance_threshold=config.pipeline.relevance_threshold,
     )
 
-    # Display results
-    print(f"\nExtracted {len(result.integrated_triples)} knowledge triples:")
+    # 显示结果
+    print(f"\n已抽取 {len(result.integrated_triples)} 个知识三元组:")
     for i, triple in enumerate(result.integrated_triples, 1):
         print(f"{i}. {triple.head} --[{triple.relation}]--> {triple.tail}")
-        print(f"   Confidence: {triple.confidence:.2f}, "
-              f"Clarity: {triple.clarity:.2f}, "
-              f"Relevance: {triple.relevance:.2f}")
+        print(f"   置信度： {triple.confidence:.2f}, "
+              f"清晰度： {triple.clarity:.2f}, "
+              f"相关性： {triple.relevance:.2f}")
 
-    print(f"\nExtracted {len(result.entities)} entities:")
+    print(f"\n已抽取 {len(result.entities)} 个实体:")
     for entity in result.entities:
         print(f"- {entity.name} ({entity.entity_type})")
 
-    # Export results
+    # 导出结果
     output_dir = Path(config.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     kg_path = output_dir / "sample_knowledge_graph.json"
     pipeline.export_knowledge_graph(kg_path)
-    print(f"\nKnowledge graph saved to: {kg_path}")
+    print(f"\n知识图谱已保存到： {kg_path}")
 
-    # Show processing metrics
-    print(f"\nProcessing Metrics:")
-    print(f"- Total time: {result.metrics.processing_time:.2f} seconds")
-    print(f"- Prompt tokens: {result.metrics.prompt_tokens}")
-    print(f"- Completion tokens: {result.metrics.completion_tokens}")
+    # 显示处理统计
+    print(f"\n处理统计：")
+    print(f"- 总耗时： {result.metrics.processing_time:.2f} 秒")
+    print(f"- 输入词元数： {result.metrics.prompt_tokens}")
+    print(f"- 输出词元数： {result.metrics.completion_tokens}")
 
 
 if __name__ == "__main__":

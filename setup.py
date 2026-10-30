@@ -1,13 +1,13 @@
-"""Setup script for KARMA package."""
+"""KARMA 软件包安装配置脚本。"""
 
 from setuptools import setup, find_packages
 import pathlib
 
-# Get the long description from the README file
+# 从 README 文件读取项目说明
 here = pathlib.Path(__file__).parent.resolve()
 long_description = (here / "README.md").read_text(encoding="utf-8")
 
-# Read version from the package
+# 从软件包中读取版本号
 def get_version():
     import sys
     sys.path.insert(0, str(here / "karma"))
@@ -20,7 +20,7 @@ def get_version():
 setup(
     name="karma-nlp",
     version=get_version(),
-    description="Multi-Agent LLMs for Automated Knowledge Graph Enrichment",
+    description="多智能体大语言模型知识图谱构建与补充",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/YuxingLu613/KARMA",
@@ -76,9 +76,9 @@ setup(
         ],
     },
     project_urls={
-        "Bug Reports": "https://github.com/YuxingLu613/KARMA/issues",
-        "Source": "https://github.com/YuxingLu613/KARMA",
-        "Documentation": "https://karma-nlp.readthedocs.io/",
+        "问题反馈": "https://github.com/YuxingLu613/KARMA/issues",
+        "源代码": "https://github.com/YuxingLu613/KARMA",
+        "使用文档": "https://karma-nlp.readthedocs.io/",
     },
     include_package_data=True,
     zip_safe=False,

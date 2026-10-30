@@ -1,12 +1,16 @@
-# Byte-compiled / optimized / DLL files
+data/
+
+docs/
+
+# 字节码、优化文件和动态链接库
 __pycache__/
 *.py[cod]
 *$py.class
 
-# C extensions
+# C 扩展
 *.so
 
-# Distribution / packaging
+# 分发和打包文件
 .Python
 build/
 develop-eggs/
@@ -28,16 +32,16 @@ share/python-wheels/
 MANIFEST
 
 # PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+#  这些文件通常由 Python 脚本根据模板生成，
+#  供 PyInstaller 构建可执行文件前注入日期等信息。
 *.manifest
 *.spec
 
-# Installer logs
+# 安装日志
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Unit test / coverage reports
+# 单元测试与覆盖率报告
 htmlcov/
 .tox/
 .nox/
@@ -51,30 +55,30 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
-# Translations
+# 翻译文件
 *.mo
 *.pot
 
-# Django stuff:
+# Django 相关文件：
 *.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
-# Flask stuff:
+# Flask 相关文件：
 instance/
 .webassets-cache
 
-# Scrapy stuff:
+# Scrapy 相关文件：
 .scrapy
 
-# Sphinx documentation
+# Sphinx 文档构建结果
 docs/_build/
 
 # PyBuilder
 target/
 
-# Jupyter Notebook
+# Jupyter 笔记本检查点
 .ipynb_checkpoints
 
 # IPython
@@ -85,23 +89,23 @@ ipython_config.py
 .python-version
 
 # pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
+#   根据 pypa/pipenv#598，建议将 Pipfile.lock 纳入版本控制。
+#   但协作时，若依赖仅适用于特定平台或不支持跨平台，
+#   pipenv 可能安装不可用的依赖，
+#   或未能安装所有必需依赖。
 #Pipfile.lock
 
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow
+# PEP 582 本地包目录，例如 github.com/David-OConnor/pyflow 使用此目录
 __pypackages__/
 
-# Celery stuff
+# Celery 相关文件
 celerybeat-schedule
 celerybeat.pid
 
-# SageMath parsed files
+# SageMath 解析文件
 *.sage.py
 
-# Environments
+# 环境配置和虚拟环境
 .env
 .venv
 env/
@@ -110,14 +114,14 @@ ENV/
 env.bak/
 venv.bak/
 
-# Spyder project settings
+# Spyder 项目设置
 .spyderproject
 .spyproject
 
-# Rope project settings
+# Rope 项目设置
 .ropeproject
 
-# mkdocs documentation
+# mkdocs 文档输出
 /site
 
 # mypy
@@ -125,10 +129,10 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
-# Pyre type checker
+# Pyre 类型检查缓存
 .pyre/
 
-# KARMA specific
+# KARMA 项目输出
 karma_output/
 output/
 results/
@@ -153,6 +157,6 @@ karma_output.json
 ehthumbs.db
 Thumbs.db
 
-# Temporary files
+# 临时文件
 *.tmp
 *.tempoutput/

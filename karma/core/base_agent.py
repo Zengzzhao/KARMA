@@ -1,8 +1,8 @@
 """
-Base agent class for the KARMA framework.
+KARMA 框架的智能体基类。
 
-This module provides the abstract base class that all KARMA agents inherit from,
-ensuring consistent interfaces and shared functionality.
+本模块提供所有智能体共同继承的抽象基类，
+统一处理接口并复用公共功能。
 """
 
 from abc import ABC, abstractmethod
@@ -16,26 +16,26 @@ logger = logging.getLogger(__name__)
 
 class BaseAgent(ABC):
     """
-    Abstract base class for all KARMA agents.
+    所有 KARMA 智能体的抽象基类。
 
-    This class provides common functionality including LLM client management,
-    token tracking, error handling, and performance monitoring.
+    提供模型客户端管理、
+    词元统计、错误处理和性能监测等公共功能。
 
-    Attributes:
-        client: OpenAI client instance
-        model_name: LLM model identifier
-        system_prompt: System prompt for the agent
-        metrics: Performance tracking metrics
+    属性：
+        client: OpenAI 客户端实例
+        model_name: 大语言模型名称
+        system_prompt: 智能体系统提示词；调用时可覆盖默认值
+        metrics: 性能统计数据
     """
 
     def __init__(self, client: OpenAI, model_name: str, system_prompt: str = ""):
         """
-        Initialize the base agent.
+        初始化智能体基类。
 
-        Args:
-            client: OpenAI client instance
-            model_name: LLM model identifier
-            system_prompt: System prompt for the agent
+        参数：
+            client: OpenAI 客户端实例
+            model_name: 大语言模型名称
+            system_prompt: 智能体系统提示词；调用时可覆盖默认值
         """
         self.client = client
         self.model_name = model_name
@@ -51,9 +51,9 @@ class BaseAgent(ABC):
     @abstractmethod
     def process(self, *args, **kwargs) -> Any:
         """
-        Main processing method for the agent.
+        智能体的主要处理方法。
 
-        This method must be implemented by all concrete agent classes.
+        所有具体智能体类都必须实现此方法。
         """
         pass
 
@@ -65,19 +65,19 @@ class BaseAgent(ABC):
         system_prompt: Optional[str] = None
     ) -> Tuple[str, int, int, float]:
         """
-        Make a call to the LLM with error handling and metrics tracking.
+        调用大语言模型，处理错误并记录调用统计。
 
-        Args:
-            prompt: User prompt
-            temperature: Sampling temperature
-            max_tokens: Maximum tokens to generate
-            system_prompt: Override system prompt for this call
+        参数：
+            prompt: 用户提示词
+            temperature: 采样温度
+            max_tokens: 最大生成词元数
+            system_prompt: 智能体系统提示词；调用时可覆盖默认值
 
-        Returns:
-            Tuple of (response_content, prompt_tokens, completion_tokens, processing_time)
+        返回：
+            返回元组 (response_content, prompt_tokens, completion_tokens, processing_time)
 
-        Raises:
-            Exception: If the LLM call fails
+        异常：
+            Exception：模型调用失败
         """
         start_time = time.time()
 
@@ -103,7 +103,7 @@ class BaseAgent(ABC):
             completion_tokens = response.usage.completion_tokens
             processing_time = time.time() - start_time
 
-            # Update metrics
+            # 更新调用统计。
             self.metrics['total_calls'] += 1
             self.metrics['total_prompt_tokens'] += prompt_tokens
             self.metrics['total_completion_tokens'] += completion_tokens
@@ -116,28 +116,28 @@ class BaseAgent(ABC):
             self.metrics['error_count'] += 1
             self.metrics['total_time'] += processing_time
 
-            logger.error(f"{self.__class__.__name__} LLM call failed: {str(e)}")
+            logger.error(f"{self.__class__.__name__} 大语言模型调用失败： {str(e)}")
             raise
 
     def _extract_float_from_text(self, text: str, default: float = 0.5) -> float:
         """
-        Extract a float value from text response.
+        从文本响应中提取浮点数。
 
-        Args:
-            text: Text containing float value
-            default: Default value if no float found
+        参数：
+            text: 待处理的文本
+            default: 未提取到数值时使用的默认值
 
-        Returns:
-            Extracted float value, clamped to [0.0, 1.0]
+        返回：
+            提取的浮点数，限制在 [0.0, 1.0] 范围内
         """
         import re
 
-        # Look for float numbers in the text
+        # 查找文本中的浮点数。
         float_matches = re.findall(r"[-+]?\d*\.\d+|\d+", text)
         if float_matches:
             try:
                 score = float(float_matches[0])
-                # Clamp to [0.0, 1.0]
+                # 将分数限制在 [0.0, 1.0]。
                 return max(0.0, min(1.0, score))
             except ValueError:
                 pass
@@ -146,40 +146,40 @@ class BaseAgent(ABC):
 
     def _parse_json_response(self, response: str) -> List[Dict]:
         """
-        Parse JSON response from LLM with error handling.
+        解析模型返回的 JSON，并处理解析错误。
 
-        Args:
-            response: LLM response containing JSON
+        参数：
+            response: 包含 JSON 的模型响应
 
-        Returns:
-            Parsed JSON data as list of dictionaries
+        返回：
+            解析得到的 JSON 数据；失败时返回空列表
         """
         import json
 
         try:
-            # Try to find JSON array in response
+            # 优先查找 JSON 数组。
             if "[" in response and "]" in response:
                 json_str = response[response.find("["):response.rfind("]")+1]
                 return json.loads(json_str)
 
-            # Try to parse the entire response as JSON
+            # 尝试将完整响应解析为 JSON。
             return json.loads(response)
 
         except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse JSON response: {e}")
+            logger.warning(f"JSON 响应解析失败： {e}")
             return []
 
     def get_metrics(self) -> Dict:
         """
-        Get performance metrics for this agent.
+        获取当前智能体的性能统计。
 
-        Returns:
-            Dictionary of performance metrics
+        返回：
+            性能统计字典
         """
         return self.metrics.copy()
 
     def reset_metrics(self):
-        """Reset all performance metrics."""
+        """重置所有性能统计。"""
         self.metrics = {
             'total_calls': 0,
             'total_prompt_tokens': 0,
@@ -189,9 +189,9 @@ class BaseAgent(ABC):
         }
 
     def __str__(self) -> str:
-        """String representation of the agent."""
+        """返回智能体的字符串表示。"""
         return f"{self.__class__.__name__}(model={self.model_name})"
 
     def __repr__(self) -> str:
-        """Detailed representation of the agent."""
+        """返回智能体的详细状态表示。"""
         return f"{self.__class__.__name__}(model={self.model_name}, calls={self.metrics['total_calls']})"

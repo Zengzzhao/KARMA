@@ -1,8 +1,8 @@
 """
-KARMA Utilities Module
+KARMA 辅助工具模块
 
-This module contains utility functions and helper classes
-for document processing and general pipeline support.
+本模块提供辅助函数和工具类，
+用于文档处理及通用流程支持。
 """
 
 from .pdf_reader import PDFReader

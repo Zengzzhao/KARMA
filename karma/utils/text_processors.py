@@ -1,8 +1,8 @@
 """
-Text processing utilities for KARMA.
+KARMA 文本处理工具。
 
-This module contains various text processing functions
-for cleaning, normalizing, and preprocessing text data.
+本模块提供多种文本处理函数，
+用于文本清理、规范化和预处理。
 """
 
 import re
@@ -15,38 +15,38 @@ logger = logging.getLogger(__name__)
 
 class TextProcessor:
     """
-    Text processing utilities for document preprocessing.
+    用于文档预处理的文本工具。
 
-    This class provides various text cleaning and normalization
-    functions optimized for biomedical text processing.
+    本类提供文本清理和规范化功能，
+    为科学文献文本处理提供通用工具。
     """
 
     def __init__(self):
-        """Initialize text processor with biomedical patterns."""
+        """初始化文本处理器。"""
         self.biomedical_abbreviations = self._load_biomedical_abbreviations()
         self.stopwords = self._load_stopwords()
 
     def clean_text(self, text: str) -> str:
         """
-        Clean and normalize text for processing.
+        清理并规范化待处理文本。
 
-        Args:
-            text: Raw text to clean
+        参数：
+            text: 待处理的文本
 
-        Returns:
-            Cleaned text
+        返回：
+            清理后的文本
         """
         if not text:
             return ""
 
-        # Remove non-printable characters
+        # 删除不可打印字符
         text = ''.join(char for char in text if char.isprintable() or char.isspace())
 
-        # Normalize whitespace
+        # 统一空白字符
         text = re.sub(r'\\s+', ' ', text)
         text = re.sub(r'\\n\\s*\\n', '\\n\\n', text)
 
-        # Fix encoding issues
+        # 修正字符编码问题
         encoding_fixes = {
             'â€™': "'",
             'â€œ': '"',
@@ -66,15 +66,15 @@ class TextProcessor:
 
     def normalize_biomedical_text(self, text: str) -> str:
         """
-        Normalize text specifically for biomedical content.
+        规范化科学文献文本。
 
-        Args:
-            text: Text to normalize
+        参数：
+            text: 待处理的文本
 
-        Returns:
-            Normalized biomedical text
+        返回：
+            规范化后的文本
         """
-        # Normalize Greek letters and symbols
+        # 规范化希腊字母和符号
         greek_mapping = {
             'α': 'alpha', 'β': 'beta', 'γ': 'gamma', 'δ': 'delta',
             'ε': 'epsilon', 'ζ': 'zeta', 'η': 'eta', 'θ': 'theta',
@@ -87,7 +87,7 @@ class TextProcessor:
         for greek, latin in greek_mapping.items():
             text = text.replace(greek, latin)
 
-        # Normalize units and symbols
+        # 规范化单位和符号
         unit_mapping = {
             '°C': ' degrees Celsius',
             '°F': ' degrees Fahrenheit',
@@ -107,44 +107,44 @@ class TextProcessor:
 
     def extract_sentences(self, text: str) -> List[str]:
         """
-        Extract sentences from text with biomedical context awareness.
+        在保留缩写的前提下提取句子。
 
-        Args:
-            text: Text to split into sentences
+        参数：
+            text: 待处理的文本
 
-        Returns:
-            List of sentences
+        返回：
+            句子列表
         """
-        # Handle abbreviations that shouldn't be sentence breaks
+        # 保护缩写，避免将缩写中的句点识别为句子边界
         protected_text = text
 
-        # Protect common biomedical abbreviations
+        # 保护常见缩写，避免被误判为句末。
         for abbrev in self.biomedical_abbreviations:
             pattern = f"\\\\b{re.escape(abbrev)}\\\\.\\\\s+"
             protected_text = re.sub(pattern, f"{abbrev}[DOT] ", protected_text)
 
-        # Split on sentence-ending punctuation
+        # 按句末标点划分句子
         sentences = re.split(r'[.!?]+\\s+', protected_text)
 
-        # Restore protected abbreviations
+        # 还原受保护的缩写
         sentences = [sent.replace('[DOT]', '.') for sent in sentences]
 
-        # Filter out very short sentences
+        # 过滤过短句子
         sentences = [sent.strip() for sent in sentences if len(sent.strip()) > 10]
 
         return sentences
 
     def remove_references(self, text: str) -> str:
         """
-        Remove reference sections and citations from text.
+        删除文本中的参考文献部分和引用标记。
 
-        Args:
-            text: Text containing references
+        参数：
+            text: 待处理的文本
 
-        Returns:
-            Text with references removed
+        返回：
+            删除参考文献和引用标记后的文本
         """
-        # Remove reference sections
+        # 删除参考文献部分
         ref_patterns = [
             r'\\n\\s*REFERENCES\\s*\\n.*$',
             r'\\n\\s*References\\s*\\n.*$',
@@ -155,11 +155,11 @@ class TextProcessor:
         for pattern in ref_patterns:
             text = re.sub(pattern, '', text, flags=re.DOTALL | re.IGNORECASE)
 
-        # Remove inline citations
+        # 删除正文中的引用标记
         citation_patterns = [
-            r'\\([^)]*\\d{4}[^)]*\\)',  # (Author, 2020)
+            r'\\([^)]*\\d{4}[^)]*\\)',  # 作者与年份格式的引用
             r'\\[\\d+(?:,\\s*\\d+)*\\]',  # [1, 2, 3]
-            r'\\([^)]*et al\\.?[^)]*\\)',  # (Smith et al., 2020)
+            r'\\([^)]*et al\\.?[^)]*\\)',  # 多作者与年份格式的引用
         ]
 
         for pattern in citation_patterns:
@@ -169,23 +169,23 @@ class TextProcessor:
 
     def extract_keywords(self, text: str, min_length: int = 3) -> Set[str]:
         """
-        Extract potential keywords from biomedical text.
+        提取潜在领域关键词。
 
-        Args:
-            text: Text to extract keywords from
-            min_length: Minimum keyword length
+        参数：
+            text: 待处理的文本
+            min_length: 关键词的最小长度
 
-        Returns:
-            Set of potential keywords
+        返回：
+            候选关键词集合
         """
-        # Convert to lowercase for processing
+        # 转换为小写后处理
         text_lower = text.lower()
 
-        # Extract potential biomedical terms
+        # 提取潜在术语。
         patterns = [
-            r'\\b[a-z]+-?[0-9]+[a-z]*\\b',  # Gene symbols with numbers
-            r'\\b[a-z]+(?:ase|in|ism|osis|itis|oma)\\b',  # Medical suffixes
-            r'\\b(?:anti|pro|pre|post|sub|super|hyper|hypo)-[a-z]+\\b'  # Medical prefixes
+            r'\\b[a-z]+-?[0-9]+[a-z]*\\b',  # 历史规则：匹配带数字的基因符号
+            r'\\b[a-z]+(?:ase|in|ism|osis|itis|oma)\\b',  # 历史规则：匹配医学词语后缀
+            r'\\b(?:anti|pro|pre|post|sub|super|hyper|hypo)-[a-z]+\\b'  # 历史规则：匹配医学词语前缀
         ]
 
         keywords = set()
@@ -194,13 +194,13 @@ class TextProcessor:
             matches = re.findall(pattern, text_lower)
             keywords.update(match for match in matches if len(match) >= min_length)
 
-        # Remove stopwords
+        # 删除停用词
         keywords = keywords - self.stopwords
 
         return keywords
 
     def _load_biomedical_abbreviations(self) -> Set[str]:
-        """Load common biomedical abbreviations."""
+        """加载常见缩写。"""
         abbreviations = {
             'Dr', 'Prof', 'vs', 'etc', 'i.e', 'e.g', 'cf', 'et al',
             'DNA', 'RNA', 'mRNA', 'tRNA', 'rRNA', 'miRNA',
@@ -213,7 +213,7 @@ class TextProcessor:
         return abbreviations
 
     def _load_stopwords(self) -> Set[str]:
-        """Load common English stopwords."""
+        """加载常用英文停用词。"""
         stopwords = {
             'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for',
             'from', 'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on',

@@ -1,8 +1,8 @@
 """
-KARMA Configuration Module
+KARMA 配置模块
 
-This module handles configuration management for the KARMA framework,
-including model settings, API configurations, and pipeline parameters.
+本模块负责 KARMA 框架的配置管理，
+包括模型设置、接口配置和处理流程参数。
 """
 
 from .settings import KARMAConfig, load_config, save_config, create_default_config

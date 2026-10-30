@@ -1,8 +1,8 @@
 """
-Configuration settings for the KARMA framework.
+KARMA 框架的配置设置。
 
-This module provides configuration management including model settings,
-API configurations, and pipeline parameters.
+管理模型设置、
+接口配置和处理流程参数。
 """
 
 import json
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ModelConfig:
-    """Configuration for LLM model settings."""
+    """大语言模型调用配置。"""
     name: str = "gpt-4o"
     api_key: str = ""
     base_url: Optional[str] = None
@@ -27,7 +27,7 @@ class ModelConfig:
 
 @dataclass
 class PipelineConfig:
-    """Configuration for pipeline processing parameters."""
+    """处理流程参数配置。"""
     relevance_threshold: float = 0.2
     integration_threshold: float = 0.6
     batch_size: int = 5
@@ -39,7 +39,7 @@ class PipelineConfig:
 
 @dataclass
 class AgentConfig:
-    """Configuration for individual agent settings."""
+    """各智能体的参数配置。"""
     ingestion: Dict = field(default_factory=lambda: {"extract_metadata": True})
     reader: Dict = field(default_factory=lambda: {"segment_min_length": 30})
     summarizer: Dict = field(default_factory=lambda: {"max_summary_length": 100})
@@ -52,63 +52,63 @@ class AgentConfig:
 
 @dataclass
 class LoggingConfig:
-    """Configuration for logging settings."""
+    """日志配置。"""
     level: str = "INFO"
     format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     file_path: Optional[str] = None
-    max_file_size: int = 10_000_000  # 10MB
+    max_file_size: int = 10_000_000  # 日志文件大小上限：10 MB
     backup_count: int = 5
 
 
 @dataclass
 class KARMAConfig:
-    """Main configuration class for KARMA framework."""
+    """KARMA 框架的主配置类。"""
     model: ModelConfig = field(default_factory=ModelConfig)
     pipeline: PipelineConfig = field(default_factory=PipelineConfig)
     agents: AgentConfig = field(default_factory=AgentConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
 
-    # Output settings
+    # 输出设置
     output_dir: str = "output"
     save_intermediate: bool = True
     save_debug_steps: bool = True
-    debug_dir: Optional[str] = None  # Defaults to <output_dir>/debug
-    export_format: str = "json"  # json, csv, or both
+    debug_dir: Optional[str] = None  # 默认使用 <output_dir>/debug
+    export_format: str = "json"  # 可选格式：json、csv 或 both
 
-    # Performance settings
+    # 性能设置
     enable_metrics: bool = True
     memory_limit_mb: int = 1024
 
     def to_dict(self) -> Dict:
-        """Convert configuration to dictionary."""
+        """将配置转换为字典。"""
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: Dict) -> 'KARMAConfig':
-        """Create configuration from dictionary."""
+        """从字典创建配置。"""
         config = cls()
 
-        # Update model config
+        # 更新模型配置
         if 'model' in data:
             model_data = data['model']
             config.model = ModelConfig(**model_data)
 
-        # Update pipeline config
+        # 更新流程配置
         if 'pipeline' in data:
             pipeline_data = data['pipeline']
             config.pipeline = PipelineConfig(**pipeline_data)
 
-        # Update agent config
+        # 更新智能体配置
         if 'agents' in data:
             agents_data = data['agents']
             config.agents = AgentConfig(**agents_data)
 
-        # Update logging config
+        # 更新日志配置
         if 'logging' in data:
             logging_data = data['logging']
             config.logging = LoggingConfig(**logging_data)
 
-        # Update other fields
+        # 更新其他字段
         for key, value in data.items():
             if key not in ['model', 'pipeline', 'agents', 'logging'] and hasattr(config, key):
                 setattr(config, key, value)
@@ -117,56 +117,56 @@ class KARMAConfig:
 
     def validate(self) -> bool:
         """
-        Validate configuration settings.
+        验证配置是否合法。
 
-        Returns:
-            True if configuration is valid
+        返回：
+            配置有效时返回 True
 
-        Raises:
-            ValueError: If configuration is invalid
+        异常：
+            ValueError：配置无效
         """
-        # Validate model settings
+        # 验证模型配置
         if not self.model.api_key:
-            raise ValueError("API key is required")
+            raise ValueError("必须提供接口密钥")
 
         if not (0.0 <= self.model.temperature <= 2.0):
-            raise ValueError("Temperature must be between 0.0 and 2.0")
+            raise ValueError("采样温度必须介于 0.0 和 2.0 之间")
 
-        # Validate pipeline settings
+        # 验证流程配置
         if not (0.0 <= self.pipeline.relevance_threshold <= 1.0):
-            raise ValueError("Relevance threshold must be between 0.0 and 1.0")
+            raise ValueError("相关性阈值必须介于 0.0 和 1.0 之间")
 
         if not (0.0 <= self.pipeline.integration_threshold <= 1.0):
-            raise ValueError("Integration threshold must be between 0.0 and 1.0")
+            raise ValueError("整合阈值必须介于 0.0 和 1.0 之间")
 
         if self.pipeline.batch_size <= 0:
-            raise ValueError("Batch size must be positive")
+            raise ValueError("批次大小必须为正数")
 
-        # Validate output directory
+        # 验证输出目录
         output_path = Path(self.output_dir)
         if not output_path.exists():
             try:
                 output_path.mkdir(parents=True, exist_ok=True)
             except Exception as e:
-                raise ValueError(f"Cannot create output directory: {e}")
+                raise ValueError(f"无法创建输出目录： {e}")
 
         return True
 
     def setup_logging(self):
-        """Setup logging based on configuration."""
+        """根据配置初始化日志。"""
         logging_level = getattr(logging, self.logging.level.upper(), logging.INFO)
 
-        # Configure basic logging
+        # 配置基本日志
         handlers = []
 
-        # Console handler
+        # 控制台日志处理器
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging_level)
         console_formatter = logging.Formatter(self.logging.format)
         console_handler.setFormatter(console_formatter)
         handlers.append(console_handler)
 
-        # File handler if specified
+        # 按配置添加文件日志处理器
         if self.logging.file_path:
             try:
                 from logging.handlers import RotatingFileHandler
@@ -180,9 +180,9 @@ class KARMAConfig:
                 file_handler.setFormatter(file_formatter)
                 handlers.append(file_handler)
             except Exception as e:
-                logger.warning(f"Failed to setup file logging: {e}")
+                logger.warning(f"文件日志初始化失败： {e}")
 
-        # Configure root logger
+        # 配置根日志记录器
         logging.basicConfig(
             level=logging_level,
             format=self.logging.format,
@@ -190,36 +190,36 @@ class KARMAConfig:
             force=True
         )
 
-        # Set specific logger levels
+        # 设置指定日志记录器的级别
         logging.getLogger("openai").setLevel(logging.WARNING)
         logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 def load_config(config_path: Union[str, Path]) -> KARMAConfig:
     """
-    Load configuration from file.
+    从文件加载配置。
 
-    Args:
-        config_path: Path to configuration file
+    参数：
+        config_path: 配置文件路径
 
-    Returns:
-        Loaded configuration
+    返回：
+        加载后的配置
 
-    Raises:
-        FileNotFoundError: If config file doesn't exist
-        ValueError: If config file is invalid
+    异常：
+        FileNotFoundError：配置文件不存在
+        ValueError：配置文件无效
     """
     config_path = Path(config_path)
 
     if not config_path.exists():
-        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+        raise FileNotFoundError(f"配置文件不存在： {config_path}")
 
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             if config_path.suffix.lower() == '.json':
                 data = json.load(f)
             else:
-                # Try to parse as JSON anyway
+                # 尝试按 JSON 格式解析
                 data = json.load(f)
 
         config = KARMAConfig.from_dict(data)
@@ -227,45 +227,45 @@ def load_config(config_path: Union[str, Path]) -> KARMAConfig:
         return config
 
     except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON in config file: {e}")
+        raise ValueError(f"配置文件中的 JSON 格式无效： {e}")
     except Exception as e:
-        raise ValueError(f"Failed to load configuration: {e}")
+        raise ValueError(f"配置加载失败： {e}")
 
 
 def save_config(config: KARMAConfig, config_path: Union[str, Path]):
     """
-    Save configuration to file.
+    将配置保存到文件。
 
-    Args:
-        config: Configuration to save
-        config_path: Path to save configuration
+    参数：
+        config: 配置对象
+        config_path: 配置文件路径
     """
     config_path = Path(config_path)
 
-    # Ensure parent directory exists
+    # 确保父目录存在
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
         with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(config.to_dict(), f, indent=2, ensure_ascii=False)
 
-        logger.info(f"Configuration saved to {config_path}")
+        logger.info(f"配置已保存到 {config_path}")
 
     except Exception as e:
-        logger.error(f"Failed to save configuration: {e}")
+        logger.error(f"配置保存失败： {e}")
         raise
 
 
 def create_default_config(api_key: str, output_dir: str = "output") -> KARMAConfig:
     """
-    Create a default configuration with the provided API key.
+    使用指定的接口密钥创建默认配置。
 
-    Args:
-        api_key: OpenAI API key
-        output_dir: Output directory path
+    参数：
+        api_key: OpenAI 接口密钥
+        output_dir: 输出目录路径
 
-    Returns:
-        Default configuration
+    返回：
+        默认配置
     """
     config = KARMAConfig()
     config.model.api_key = api_key
@@ -276,16 +276,16 @@ def create_default_config(api_key: str, output_dir: str = "output") -> KARMAConf
 
 def get_environment_config() -> KARMAConfig:
     """
-    Create configuration from environment variables.
+    根据环境变量创建配置。
 
-    Returns:
-        Configuration built from environment variables
+    返回：
+        根据环境变量生成的配置
     """
     import os
 
     config = KARMAConfig()
 
-    # Model configuration from environment
+    # 从环境变量读取模型配置
     if os.getenv('KARMA_API_KEY'):
         config.model.api_key = os.getenv('KARMA_API_KEY')
     if os.getenv('KARMA_BASE_URL'):
@@ -293,13 +293,13 @@ def get_environment_config() -> KARMAConfig:
     if os.getenv('KARMA_MODEL'):
         config.model.name = os.getenv('KARMA_MODEL')
 
-    # Pipeline configuration from environment
+    # 从环境变量读取流程配置
     if os.getenv('KARMA_RELEVANCE_THRESHOLD'):
         config.pipeline.relevance_threshold = float(os.getenv('KARMA_RELEVANCE_THRESHOLD'))
     if os.getenv('KARMA_INTEGRATION_THRESHOLD'):
         config.pipeline.integration_threshold = float(os.getenv('KARMA_INTEGRATION_THRESHOLD'))
 
-    # Output configuration from environment
+    # 从环境变量读取输出配置
     if os.getenv('KARMA_OUTPUT_DIR'):
         config.output_dir = os.getenv('KARMA_OUTPUT_DIR')
 

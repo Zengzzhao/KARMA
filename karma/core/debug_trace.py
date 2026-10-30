@@ -1,4 +1,4 @@
-"""Numbered, per-document snapshots of pipeline inputs and outputs."""
+"""按文档保存带编号的各阶段输入和输出快照。"""
 
 import json
 import logging
@@ -12,7 +12,7 @@ from uuid import uuid4
 logger = logging.getLogger(__name__)
 
 def snapshot(value):
-    """Copy values before an agent can mutate shared entities/triples in place."""
+    """复制数据，避免智能体原地修改共享实体或三元组后改变历史记录。"""
     if is_dataclass(value):
         return snapshot(asdict(value))
     if isinstance(value, dict):
@@ -27,7 +27,7 @@ def snapshot(value):
 
 
 class DebugTrace:
-    """Write each completed or failed step immediately; never serialize API config."""
+    """每步完成或失败后立即写入记录，不序列化接口凭据配置。"""
 
     def __init__(self, root, parameters):
         self.directory = None
@@ -74,7 +74,7 @@ class DebugTrace:
                 key: value - metrics_before.get(key, 0)
                 for key, value in metrics_after.items()
             }
-            # Atomic replacement prevents readers from seeing half-written JSON.
+            # 使用原子替换，避免读取到未写完的 JSON。
             path = self.directory / filename
             temporary = path.with_suffix(".json.tmp")
             try:
@@ -84,7 +84,7 @@ class DebugTrace:
                 temporary.replace(path)
                 self.previous_file = filename
             except OSError:
-                logger.exception("Could not write step debug file: %s", path)
-                # Preserve the original agent exception if tracing also fails.
+                logger.exception("无法写入逐步调试文件： %s", path)
+                # 追踪写入失败时保留原 Agent 异常。
                 if record["status"] != "failed":
                     raise

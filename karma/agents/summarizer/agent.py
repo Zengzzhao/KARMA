@@ -1,9 +1,6 @@
-"""
-Summarizer Agent Implementation
+"""摘要 Agent：将高相关性文献片段压缩为保留证据的摘要。"""
 
-The Summarizer Agent converts high-relevance text segments into concise summaries
-while preserving technical details crucial for knowledge extraction.
-"""
+from karma.agents.scientometrics_prompts import SUMMARIZER
 
 import logging
 from typing import List, Tuple
@@ -15,79 +12,37 @@ logger = logging.getLogger(__name__)
 
 class SummarizerAgent(BaseAgent):
     """
-    Summarizer Agent (SA) for text segment summarization.
+    负责文本片段摘要生成的智能体。
 
-    This agent:
-    1. Converts high-relevance segments into concise summaries
-    2. Preserves technical details (gene symbols, chemical names, numeric data)
-    3. Maintains entity relationships and quantitative information
-    4. Filters out very low relevance content
+    本智能体负责：
+    1. 将高相关性片段压缩为简洁摘要
+    2. 保留指标名称、公式、限制条件和数值信息
+    3. 保留实体关系和定量信息
+    4. 过滤相关性过低的内容
     """
 
     def __init__(self, client, model_name: str):
         """
-        Initialize the Summarizer Agent.
+        初始化摘要生成智能体。
 
-        Args:
-            client: OpenAI client instance
-            model_name: LLM model identifier
+        参数：
+            client: OpenAI 客户端实例
+            model_name: 大语言模型名称
         """
-        system_prompt = """You are a specialized Summarizer Agent for biomedical literature processing. Your task is to create concise, information-dense summaries that preserve all knowledge-relevant content.
-
-OBJECTIVE: Transform text segments into concise summaries (≤100 words) while preserving all entities, relationships, and quantitative data essential for knowledge extraction.
-
-PRESERVATION REQUIREMENTS:
-MANDATORY TO RETAIN:
-- All biomedical entities (genes, proteins, drugs, diseases, chemicals)
-- Exact terminology (IL-6, p53, BRCA1, aspirin, etc.)
-- Quantitative measurements (IC50 values, p-values, concentrations, percentages)
-- Relationship indicators (inhibits, activates, treats, causes, correlates with)
-- Statistical significance markers (p<0.05, 95% CI, fold-change)
-- Dosages, timeframes, and experimental conditions
-
-LINGUISTIC REQUIREMENTS:
-- Use precise scientific language
-- Maintain causal relationships and logical flow
-- Preserve technical specificity without oversimplification
-- Include contextual qualifiers (significant, moderate, slight)
-- Keep comparative language (more than, less than, similar to)
-
-SUMMARIZATION STRATEGY:
-1. Identify core knowledge claims
-2. Extract all named entities
-3. Preserve relationship statements
-4. Condense methodology while keeping key parameters
-5. Maintain quantitative precision
-
-OUTPUT FORMAT:
-- Single paragraph, maximum 100 words
-- Complete sentences with proper scientific grammar
-- No bullet points or fragmented phrases
-- Preserve original terminology exactly as written
-
-EXAMPLE:
-Input: "Treatment with aspirin (100mg daily) significantly reduced inflammatory markers in skeletal muscle. COX-2 activity decreased by 45% (p<0.001) compared to placebo group. PGE2 levels were also significantly reduced (2.1 ± 0.3 vs 4.2 ± 0.5 ng/ml, p<0.05)."
-
-Output: "Aspirin treatment (100mg daily) significantly reduced inflammatory markers in skeletal muscle by decreasing COX-2 activity 45% (p<0.001) versus placebo. PGE2 levels were significantly reduced (2.1 ± 0.3 vs 4.2 ± 0.5 ng/ml, p<0.05)."
-
-QUALITY CONTROL:
-- Never invent or modify entity names
-- Never approximate exact numerical values
-- Never omit statistical significance indicators
-- Never simplify technical relationships"""
+        system_prompt = SUMMARIZER
 
         super().__init__(client, model_name, system_prompt)
 
     def process(self, segments: List[str], relevance_threshold: float = 0.2) -> List[str]:
         """
-        Summarize a list of text segments.
+        为多个文本片段生成摘要。
 
-        Args:
-            segments: List of text segments to summarize
-            relevance_threshold: Minimum relevance to process segment
+        参数：
+            segments: 待处理的文本片段列表
+            relevance_threshold: 保留或处理片段所需的最低相关性评分
 
-        Returns:
-            List of summaries
+        返回：
+            摘要列表
         """
         summaries = []
 
@@ -97,7 +52,7 @@ QUALITY CONTROL:
                 relevance = segment.get('score', 1.0)
             else:
                 text = segment
-                relevance = 1.0  # Assume relevant if no score provided
+                relevance = 1.0  # 未提供评分时默认视为相关
 
             if relevance < relevance_threshold:
                 summaries.append("[OMITTED - Low Relevance]")
@@ -110,50 +65,38 @@ QUALITY CONTROL:
 
     def _summarize_single_segment(self, text: str) -> str:
         """
-        Summarize a single text segment.
+        为单个文本片段生成摘要。
 
-        Args:
-            text: Text segment to summarize
+        参数：
+            text: 待处理的文本
 
-        Returns:
-            Summarized text
+        返回：
+            生成的摘要文本
         """
-        # Skip very short segments
+        # 跳过过短的片段
         if len(text.split()) < 15:
-            return text  # Return as-is if too short to meaningfully summarize
+            return text  # 文本过短、无法有效压缩时直接返回原文
 
-        prompt = f"""
-        Summarize the following biomedical text in 2-4 sentences, keeping it under 100 words.
-
-        Critical Requirements:
-        - Retain ALL technical terms (genes, proteins, drugs, diseases, chemicals)
-        - Preserve ALL numeric data (concentrations, p-values, percentages, doses)
-        - Keep relationship indicators (inhibits, activates, treats, causes, etc.)
-        - Maintain scientific precision and accuracy
-        - Use clear, unambiguous language
-
-        If the text contains very little scientific information, provide a brief summary or return "[LOW CONTENT]".
-
-        Provide only the summary with no additional text, formatting, or explanations.
-
-        Text to summarize:
-        {text}
-        """
+        prompt = f"""请生成 100 个词以内的科学计量指标抽取式摘要，保留原文语言。
+输入中存在完整公式、局限性陈述、贡献归属和关系证据时，优先原样保留。
+遵守系统规则，仅输出纯文本摘要。
+待分析文本：
+{text}"""
 
         try:
             summary, _, _, _ = self._make_llm_call(prompt, temperature=0.2)
 
-            # Basic validation and cleanup
+            # 执行基本校验和清理
             summary = summary.strip()
 
-            # Handle empty or low-quality responses
+            # 处理空响应或低质量响应
             if not summary or summary.lower() in ['[low content]', 'low content', 'n/a']:
-                # Fallback: extract key sentences
+                # 回退处理：提取关键句
                 return self._extract_key_sentences(text)
 
-            # Ensure summary is within length limit
-            if len(summary.split()) > 120:  # Allow some flexibility
-                # Truncate while preserving sentence structure
+            # 确保摘要在长度限制内
+            if len(summary.split()) > 120:  # 允许一定的长度浮动
+                # 保留句子结构后截断文本
                 sentences = summary.split('. ')
                 truncated_summary = ""
                 word_count = 0
@@ -171,32 +114,32 @@ QUALITY CONTROL:
             return summary
 
         except Exception as e:
-            logger.warning(f"Summarization failed for segment: {str(e)}")
+            logger.warning(f"片段摘要生成失败： {str(e)}")
             return self._extract_key_sentences(text)
 
     def _extract_key_sentences(self, text: str) -> str:
         """
-        Fallback method to extract key sentences when LLM summarization fails.
+        模型摘要失败时，通过提取关键句生成回退摘要。
 
-        Args:
-            text: Original text
+        参数：
+            text: 待处理的文本
 
-        Returns:
-            Key sentences extracted from text
+        返回：
+            从文本中提取的关键句
         """
         sentences = text.split('. ')
 
-        # Score sentences based on biomedical content
+        # 根据指标定义、关系词和数值信息评估句子重要性。
         scored_sentences = []
 
         for sentence in sentences:
             score = self._score_sentence_importance(sentence)
             scored_sentences.append((sentence, score))
 
-        # Sort by score and take top sentences
+        # 按评分排序并选取高分句子
         scored_sentences.sort(key=lambda x: x[1], reverse=True)
 
-        # Select top sentences within word limit
+        # 在词数限制内选取高分句子
         selected_sentences = []
         word_count = 0
 
@@ -209,24 +152,24 @@ QUALITY CONTROL:
         if selected_sentences:
             return '. '.join(selected_sentences) + '.'
         else:
-            # Return first 100 words as last resort
+            # 最终回退为原文前 100 个词
             words = text.split()[:100]
             return ' '.join(words) + '...'
 
     def _score_sentence_importance(self, sentence: str) -> float:
         """
-        Score the importance of a sentence for biomedical knowledge extraction.
+        评估句子对科学计量知识抽取的重要性。
 
-        Args:
-            sentence: Sentence to score
+        参数：
+            sentence: 待评分的句子
 
-        Returns:
-            Importance score (0-1)
+        返回：
+            重要性评分（0～1）
         """
         sentence_lower = sentence.lower()
         score = 0.0
 
-        # High-value biomedical terms
+        # 高价值的指标、关系和评价词。
         high_value_terms = [
             'inhibit', 'activate', 'regulate', 'express', 'bind', 'interact',
             'cause', 'treat', 'prevent', 'induce', 'suppress', 'enhance',
@@ -235,21 +178,21 @@ QUALITY CONTROL:
             'significant', 'increase', 'decrease', 'effect', 'response'
         ]
 
-        # Count high-value terms
+        # 统计高价值词语
         for term in high_value_terms:
             if term in sentence_lower:
                 score += 0.1
 
-        # Bonus for numeric data
+        # 为含数值数据的句子加分
         import re
         if re.search(r'\d+\.?\d*\s*(%|mg|μg|ng|mM|μM|nM|p\s*[<>=])', sentence):
             score += 0.3
 
-        # Bonus for entity mentions (capitalized terms)
+        # 为疑似实体名称（首字母大写词语）加分
         capitalized_words = re.findall(r'\b[A-Z][A-Za-z0-9-]+\b', sentence)
         score += len(capitalized_words) * 0.05
 
-        # Penalty for very short or very long sentences
+        # 对过短或过长的句子扣分
         word_count = len(sentence.split())
         if word_count < 5:
             score *= 0.5
@@ -260,13 +203,13 @@ QUALITY CONTROL:
 
     def summarize_segment(self, segment: str) -> Tuple[str, int, int, float]:
         """
-        Legacy method for backward compatibility.
+        为兼容旧接口保留的方法。
 
-        Args:
-            segment: Text segment to summarize
+        参数：
+            segment: 待处理的文本片段
 
-        Returns:
-            Tuple of (summary, prompt_tokens, completion_tokens, processing_time)
+        返回：
+            返回元组 (summary, prompt_tokens, completion_tokens, processing_time)
         """
         summary = self._summarize_single_segment(segment)
-        return summary, 0, 0, 0.0  # Token counts handled internally now
+        return summary, 0, 0, 0.0  # 词元数由内部调用统一统计。

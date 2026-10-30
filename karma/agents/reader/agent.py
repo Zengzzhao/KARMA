@@ -1,9 +1,11 @@
 """
-Reader Agent Implementation
+阅读分块智能体实现
 
-The Reader Agent handles document segmentation and relevance scoring
-for efficient downstream processing.
+阅读分块智能体负责文档分块和相关性评分，
+为后续处理筛选有效内容。
 """
+
+from karma.agents.scientometrics_prompts import READER
 
 import logging
 from typing import List, Dict, Tuple
@@ -16,88 +18,45 @@ logger = logging.getLogger(__name__)
 
 class ReaderAgent(BaseAgent):
     """
-    Reader Agent (RA) for document segmentation and relevance scoring.
+    负责文档分块和相关性评分的阅读智能体。
 
-    This agent:
-    1. Splits normalized text into logical segments (paragraph-level chunks)
-    2. Assigns relevance scores to each segment based on domain knowledge
-    3. Filters content based on relevance thresholds
-    4. Handles structural document elements (headers, sections, etc.)
+    本智能体负责：
+    1. 将规范化文本划分为段落级逻辑块
+    2. 根据领域知识为每个片段赋予相关性分数
+    3. 根据相关性阈值过滤内容
+    4. 识别标题、章节等文档结构特征
     """
 
     def __init__(self, client, model_name: str):
         """
-        Initialize the Reader Agent.
+        初始化阅读分块智能体。
 
-        Args:
-            client: OpenAI client instance
-            model_name: LLM model identifier
+        参数：
+            client: OpenAI 客户端实例
+            model_name: 大语言模型名称
         """
-        system_prompt = """You are a specialized Reader Agent for biomedical literature analysis. Your task is to evaluate text segments and assign precise relevance scores for knowledge extraction.
-
-OBJECTIVE: Score text segments (0.0-1.0) based on their potential to contain extractable biomedical knowledge relationships.
-
-SCORING CRITERIA:
-HIGH RELEVANCE (0.8-1.0):
-- Results sections with quantitative findings
-- Discussion of mechanisms, pathways, or interactions
-- Novel discoveries or experimental outcomes
-- Specific drug-disease relationships
-- Quantitative data (IC50, p-values, concentrations)
-
-MODERATE RELEVANCE (0.4-0.7):
-- Background information with entity relationships
-- Clinical observations or case descriptions
-- General statements about biological processes
-- Abstract summaries of findings
-- Introduction sections with known facts
-
-LOW RELEVANCE (0.1-0.3):
-- Methodological descriptions without outcomes
-- Acknowledgments, funding information
-- Pure statistical analysis without interpretation
-- Equipment descriptions or protocols
-- Author affiliations and contact information
-
-MINIMAL RELEVANCE (0.0-0.1):
-- References and citations
-- Copyright notices
-- Figure/table captions without data
-- Purely administrative content
-
-SCORING REQUIREMENTS:
-- Return only a single float value between 0.0 and 1.0
-- Consider biomedical terminology density
-- Prioritize content describing relationships between entities
-- Account for presence of specific measurements or outcomes
-- Evaluate potential for entity-relationship extraction
-
-EXAMPLES:
-"IL-6 significantly reduced tumor growth (p<0.001) compared to control" → 0.95
-"Patients were enrolled according to institutional guidelines" → 0.15
-"Aspirin inhibits COX-2 through covalent binding" → 0.90
-"Statistical analysis was performed using SPSS software" → 0.20"""
+        system_prompt = READER
 
         super().__init__(client, model_name, system_prompt)
 
     def process(self, content: str, relevance_threshold: float = 0.2) -> Tuple[List[Dict], List[Dict]]:
         """
-        Segment content and score relevance of each segment.
+        划分文本，并评估每个片段的相关性。
 
-        Args:
-            content: Text content to segment
-            relevance_threshold: Minimum relevance score to keep segments
+        参数：
+            content: 待分块的文本内容
+            relevance_threshold: 保留或处理片段所需的最低相关性评分
 
-        Returns:
-            Tuple of (all_segments, relevant_segments)
+        返回：
+            返回元组 (all_segments, relevant_segments)
         """
-        # Split into logical segments
+        # 划分逻辑片段
         segments = self._split_into_segments(content)
 
-        # Score relevance for each segment
+        # 评估各片段的相关性
         scored_segments = self._score_segments_batch(segments)
 
-        # Filter relevant segments
+        # 筛选相关片段
         relevant_segments = [
             seg for seg in scored_segments
             if seg.get('score', 0.0) >= relevance_threshold
@@ -107,17 +66,17 @@ EXAMPLES:
 
     def _split_into_segments(self, content: str) -> List[Dict]:
         """
-        Split content into logical segments based on structure.
+        根据文本结构划分逻辑片段。
 
-        Args:
-            content: Content to segment
+        参数：
+            content: 待分块的文本内容
 
-        Returns:
-            List of segment dictionaries
+        返回：
+            片段字典列表
         """
         segments = []
 
-        # Split on double newlines (paragraph breaks)
+        # 按双换行符划分段落
         raw_segments = content.split('\n\n')
 
         for i, segment_text in enumerate(raw_segments):
@@ -125,12 +84,12 @@ EXAMPLES:
             if not segment_text:
                 continue
 
-            # Determine section type based on content
+            # 根据内容判断章节类型
             section_type = self._identify_section_type(segment_text)
 
             segment = {
                 'text': segment_text,
-                'score': 0.0,  # Will be filled by scoring
+                'score': 0.0,  # 由后续评分步骤填充
                 'section': section_type,
                 'position': i,
                 'word_count': len(segment_text.split())
@@ -142,17 +101,17 @@ EXAMPLES:
 
     def _identify_section_type(self, text: str) -> str:
         """
-        Identify the type of section based on content patterns.
+        根据内容模式识别章节类型。
 
-        Args:
-            text: Segment text to analyze
+        参数：
+            text: 待处理的文本
 
-        Returns:
-            Section type identifier
+        返回：
+            章节类型标识
         """
         text_lower = text.lower()
 
-        # Common section headers
+        # 常见章节标题
         section_patterns = {
             'abstract': [r'^abstract\b', r'summary\b'],
             'introduction': [r'^introduction\b', r'^background\b'],
@@ -170,10 +129,10 @@ EXAMPLES:
                 if re.search(pattern, text_lower):
                     return section_type
 
-        # If no specific section identified, categorize by content characteristics
+        # 未识别出章节标题时，根据内容特征分类
         if len(text.split()) < 10:
             return 'header'
-        elif re.search(r'\d+\.\s+\w+.*\(\d{4}\)', text):  # Citation pattern
+        elif re.search(r'\d+\.\s+\w+.*\(\d{4}\)', text):  # 引用格式
             return 'references'
         elif text.startswith(('Figure', 'Table', 'Fig.')):
             return 'figure_caption'
@@ -182,15 +141,15 @@ EXAMPLES:
 
     def _score_segments_batch(self, segments: List[Dict]) -> List[Dict]:
         """
-        Score relevance for multiple segments efficiently.
+        批量评估多个片段的相关性。
 
-        Args:
-            segments: List of segments to score
+        参数：
+            segments: 待处理的文本片段列表
 
-        Returns:
-            List of segments with relevance scores
+        返回：
+            包含相关性评分的片段列表
         """
-        # Process segments in batches to be more efficient
+        # 分批处理片段以提高效率
         batch_size = 5
         scored_segments = []
 
@@ -209,41 +168,26 @@ EXAMPLES:
 
     def _batch_score_relevance(self, segments: List[Dict]) -> List[float]:
         """
-        Score relevance for a batch of segments using LLM.
+        使用大语言模型为一批片段评估相关性。
 
-        Args:
-            segments: List of segments to score
+        参数：
+            segments: 待处理的文本片段列表
 
-        Returns:
-            List of relevance scores
+        返回：
+            相关性评分列表
         """
         if not segments:
             return []
 
-        # Create batch prompt
+        # 构造批量评分提示词
         segment_texts = []
         for i, seg in enumerate(segments):
-            section_info = f" [Section: {seg['section']}]" if seg.get('section') != 'content' else ""
-            segment_texts.append(f"Segment {i+1}{section_info}:\n{seg['text'][:500]}...")
+            section_info = f" [章节: {seg['section']}]" if seg.get('section') != 'content' else ""
+            segment_texts.append(f"片段 {i+1}{section_info}:\n{seg['text'][:500]}...")
 
-        prompt = f"""
-        You are a biomedical text relevance scorer.
-        Rate how relevant each of the following segments is (0.0 to 1.0) for extracting
-        new biomedical knowledge (e.g., relationships between diseases, drugs, genes, proteins).
-
-        Consider:
-        - Results and discussion sections usually have higher relevance (0.7-0.9)
-        - Abstract and introduction sections have moderate relevance (0.5-0.7)
-        - Methods sections without findings have lower relevance (0.2-0.4)
-        - References, acknowledgments have very low relevance (0.0-0.2)
-        - Content with specific biomedical entities, relationships, or findings scores higher
-
-        For each segment, return only a single float value between 0.0 and 1.0, with no other text.
-
-        {chr(10).join(segment_texts)}
-
-        Return one score per line, with no labels:
-        """
+        prompt = f"""请评估以下片段对科学计量指标抽取的相关性。
+按输入顺序输出评分，每行一个，不附加说明。
+{chr(10).join(segment_texts)}"""
 
         try:
             response, _, _, _ = self._make_llm_call(prompt, temperature=0.1)
@@ -255,30 +199,30 @@ EXAMPLES:
                 score = self._extract_float_from_text(line.strip(), default=0.5)
                 scores.append(score)
 
-            # Ensure we have scores for all segments
+            # 确保每个片段都有评分
             while len(scores) < len(segments):
                 scores.append(0.5)
 
             return scores[:len(segments)]
 
         except Exception as e:
-            logger.warning(f"Batch scoring failed: {str(e)}")
+            logger.warning(f"批量评分失败： {str(e)}")
             return [self._get_default_score(seg) for seg in segments]
 
     def _get_default_score(self, segment: Dict) -> float:
         """
-        Get default relevance score based on segment characteristics.
+        根据片段特征返回默认相关性评分。
 
-        Args:
-            segment: Segment to score
+        参数：
+            segment: 待处理的文本片段
 
-        Returns:
-            Default relevance score
+        返回：
+            默认相关性评分
         """
         section_type = segment.get('section', 'content')
         word_count = segment.get('word_count', 0)
 
-        # Default scores based on section type
+        # 根据章节类型设置默认评分
         section_scores = {
             'results': 0.8,
             'discussion': 0.7,
@@ -296,23 +240,23 @@ EXAMPLES:
 
         base_score = section_scores.get(section_type, 0.5)
 
-        # Adjust based on content length
+        # 根据内容长度调整评分
         if word_count < 10:
-            base_score *= 0.5  # Very short segments less relevant
+            base_score *= 0.5  # 降低过短片段的相关性评分
         elif word_count > 100:
-            base_score *= 1.1  # Longer segments might be more informative
+            base_score *= 1.1  # 较长片段可能包含更多有效信息
 
         return min(1.0, max(0.0, base_score))
 
     def score_relevance(self, segment: str) -> Tuple[float, int, int, float]:
         """
-        Legacy method for backward compatibility.
+        为兼容旧接口保留的方法。
 
-        Args:
-            segment: Text segment to score
+        参数：
+            segment: 待处理的文本片段
 
-        Returns:
-            Tuple of (relevance_score, prompt_tokens, completion_tokens, processing_time)
+        返回：
+            返回元组 (relevance_score, prompt_tokens, completion_tokens, processing_time)
         """
         segment_dict = {'text': segment, 'section': 'content', 'word_count': len(segment.split())}
         scored_segments = self._score_segments_batch([segment_dict])
@@ -324,13 +268,13 @@ EXAMPLES:
 
     def split_into_segments(self, content: str) -> List[Dict]:
         """
-        Legacy method for backward compatibility.
+        为兼容旧接口保留的方法。
 
-        Args:
-            content: Content to segment
+        参数：
+            content: 待分块的文本内容
 
-        Returns:
-            List of segment dictionaries
+        返回：
+            片段字典列表
         """
         all_segments, _ = self.process(content)
         return all_segments
